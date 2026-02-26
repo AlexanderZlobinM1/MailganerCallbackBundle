@@ -23,7 +23,7 @@ class MailganerCallbackIntegration extends AbstractIntegration
 
     public function getIcon(): string
     {
-        return 'plugins/MailganerCallbackBundle/Assets/img/icon.png';
+        return 'plugins/MailganerCallbackBundle/Assets/img/icon.svg';
     }
 
     public function getAuthenticationType(): string
