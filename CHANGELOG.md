@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 - 2026-02-26
+
+- Added dedicated callback debug file logging to `var/logs/Mailganer.log` (JSON lines).
+
 ## 1.0.1 - 2026-02-26
 
 - Added optional debug logging switch for incoming webhooks in integration settings.

@@ -22,6 +22,7 @@ use Symfony\Component\Mime\Address;
 class CallbackSubscriber implements EventSubscriberInterface
 {
     private const MAX_LOGGED_BODY_LENGTH = 20000;
+    private const LOG_FILE_NAME = 'Mailganer.log';
 
     public function __construct(
         private TransportCallback $transportCallback,
@@ -52,7 +53,7 @@ class CallbackSubscriber implements EventSubscriberInterface
         $logInbound = $this->toBoolean($this->getIntegrationKey('mailganer_callback_log_payload'));
 
         if ($logInbound) {
-            $this->logger->info('Mailganer callback received', [
+            $context = [
                 'ip'           => $request->getClientIp(),
                 'method'       => $request->getMethod(),
                 'uri'          => $request->getRequestUri(),
@@ -60,16 +61,20 @@ class CallbackSubscriber implements EventSubscriberInterface
                 'headers'      => $request->headers->all(),
                 'raw_body'     => substr($rawBody, 0, self::MAX_LOGGED_BODY_LENGTH),
                 'body_trimmed' => strlen($rawBody) > self::MAX_LOGGED_BODY_LENGTH,
-            ]);
+            ];
+            $this->logger->info('Mailganer callback received', $context);
+            $this->appendToMailganerLog('callback_received', $context);
         }
 
         $payload = json_decode($rawBody, true);
 
         if (JSON_ERROR_NONE !== json_last_error()) {
             if ($logInbound) {
-                $this->logger->warning('Mailganer callback invalid JSON', [
+                $context = [
                     'json_error' => json_last_error_msg(),
-                ]);
+                ];
+                $this->logger->warning('Mailganer callback invalid JSON', $context);
+                $this->appendToMailganerLog('invalid_json', $context);
             }
             $event->setResponse(new Response('Invalid JSON', Response::HTTP_BAD_REQUEST));
 
@@ -78,9 +83,11 @@ class CallbackSubscriber implements EventSubscriberInterface
 
         if (!is_array($payload)) {
             if ($logInbound) {
-                $this->logger->warning('Mailganer callback invalid payload type', [
+                $context = [
                     'payload_type' => gettype($payload),
-                ]);
+                ];
+                $this->logger->warning('Mailganer callback invalid payload type', $context);
+                $this->appendToMailganerLog('invalid_payload_type', $context);
             }
             $event->setResponse(new Response('Invalid payload', Response::HTTP_BAD_REQUEST));
 
@@ -91,12 +98,14 @@ class CallbackSubscriber implements EventSubscriberInterface
             $processed = $this->processPayload($payload);
 
             if ($logInbound) {
-                $this->logger->info('Mailganer callback processed summary', [
+                $context = [
                     'processed'       => $processed,
                     'root_keys'       => array_keys($payload),
                     'messages_count'  => is_array($payload['messages'] ?? null) ? count($payload['messages']) : 0,
                     'xml_messages_count' => is_array($payload['xml_messages'] ?? null) ? count($payload['xml_messages']) : 0,
-                ]);
+                ];
+                $this->logger->info('Mailganer callback processed summary', $context);
+                $this->appendToMailganerLog('processed_summary', $context);
             }
 
             $event->setResponse(new Response(sprintf('Mailganer Callback processed (%d)', $processed)));
@@ -374,5 +383,25 @@ class CallbackSubscriber implements EventSubscriberInterface
         $integration = $this->integrationHelper->getIntegrationObject(MailganerCallbackIntegration::INTEGRATION_NAME);
 
         return $integration instanceof AbstractIntegration ? $integration : null;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function appendToMailganerLog(string $type, array $context): void
+    {
+        try {
+            $mauticRoot = dirname(__DIR__, 3);
+            $logPath    = $mauticRoot.'/var/logs/'.self::LOG_FILE_NAME;
+            $record     = [
+                'ts'      => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+                'type'    => $type,
+                'context' => $context,
+            ];
+
+            file_put_contents($logPath, json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL, FILE_APPEND | LOCK_EX);
+        } catch (\Throwable $exception) {
+            $this->logger->warning('Failed to write Mailganer.log: '.$exception->getMessage());
+        }
     }
 }
