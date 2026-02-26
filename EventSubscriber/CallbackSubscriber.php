@@ -21,6 +21,8 @@ use Symfony\Component\Mime\Address;
 
 class CallbackSubscriber implements EventSubscriberInterface
 {
+    private const MAX_LOGGED_BODY_LENGTH = 20000;
+
     public function __construct(
         private TransportCallback $transportCallback,
         private CoreParametersHelper $coreParametersHelper,
@@ -45,15 +47,41 @@ class CallbackSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $payload = json_decode($event->getRequest()->getContent(), true);
+        $request = $event->getRequest();
+        $rawBody = (string) $request->getContent();
+        $logInbound = $this->toBoolean($this->getIntegrationKey('mailganer_callback_log_payload'));
+
+        if ($logInbound) {
+            $this->logger->info('Mailganer callback received', [
+                'ip'           => $request->getClientIp(),
+                'method'       => $request->getMethod(),
+                'uri'          => $request->getRequestUri(),
+                'user_agent'   => $request->headers->get('User-Agent'),
+                'headers'      => $request->headers->all(),
+                'raw_body'     => substr($rawBody, 0, self::MAX_LOGGED_BODY_LENGTH),
+                'body_trimmed' => strlen($rawBody) > self::MAX_LOGGED_BODY_LENGTH,
+            ]);
+        }
+
+        $payload = json_decode($rawBody, true);
 
         if (JSON_ERROR_NONE !== json_last_error()) {
+            if ($logInbound) {
+                $this->logger->warning('Mailganer callback invalid JSON', [
+                    'json_error' => json_last_error_msg(),
+                ]);
+            }
             $event->setResponse(new Response('Invalid JSON', Response::HTTP_BAD_REQUEST));
 
             return;
         }
 
         if (!is_array($payload)) {
+            if ($logInbound) {
+                $this->logger->warning('Mailganer callback invalid payload type', [
+                    'payload_type' => gettype($payload),
+                ]);
+            }
             $event->setResponse(new Response('Invalid payload', Response::HTTP_BAD_REQUEST));
 
             return;
@@ -61,6 +89,16 @@ class CallbackSubscriber implements EventSubscriberInterface
 
         try {
             $processed = $this->processPayload($payload);
+
+            if ($logInbound) {
+                $this->logger->info('Mailganer callback processed summary', [
+                    'processed'       => $processed,
+                    'root_keys'       => array_keys($payload),
+                    'messages_count'  => is_array($payload['messages'] ?? null) ? count($payload['messages']) : 0,
+                    'xml_messages_count' => is_array($payload['xml_messages'] ?? null) ? count($payload['xml_messages']) : 0,
+                ]);
+            }
+
             $event->setResponse(new Response(sprintf('Mailganer Callback processed (%d)', $processed)));
         } catch (\Throwable $exception) {
             $this->logger->error('Failed to process Mailganer payload: '.$exception->getMessage());

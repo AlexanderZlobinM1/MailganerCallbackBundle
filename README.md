@@ -56,9 +56,13 @@ https://mautic.example.com/mailer/callback
 5. Open plugin card in Mautic Plugins and configure settings directly in plugin modal.
 
 Use switches to enable/disable processing for `failed`, `fbl`, and `unsubscribe` statuses.
+You can also enable incoming webhook logging (`Log incoming webhook payload`) for provider diagnostics.
 
 ## Notes
 
 - Plugin accepts both webhook payload formats: `messages` (single sends) and `xml_messages` (batch sends).
 - Email is extracted from `email`, `recipient`, `to`, or `address` field.
 - Optional message email ID is extracted from numeric `x_track_id` or `message_id` when possible.
+- When webhook logging is enabled, inspect Mautic logs (`var/logs/mautic_prod.php` or environment-specific log file) for records:
+  - `Mailganer callback received`
+  - `Mailganer callback processed summary`

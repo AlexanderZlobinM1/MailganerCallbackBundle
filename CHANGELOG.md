@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-02-26
+
+- Added optional debug logging switch for incoming webhooks in integration settings.
+- Added detailed inbound callback logs (IP, headers, raw body, processing summary) for provider-side diagnostics.
+
 ## 1.0.0 - 2026-02-25
 
 - Initial Mailganer (Samotpravil) callback plugin for Mautic 5/6/7.

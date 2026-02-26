@@ -71,6 +71,12 @@ class MailganerCallbackIntegration extends AbstractIntegration
             'data'  => $this->toBool($data['mailganer_callback_handle_unsubscribe'] ?? true),
             'attr'  => ['tooltip' => 'mailganer_callback.config.handle_unsubscribe.tooltip'],
         ]);
+
+        $builder->add('mailganer_callback_log_payload', YesNoButtonGroupType::class, [
+            'label' => 'mailganer_callback.config.log_payload',
+            'data'  => $this->toBool($data['mailganer_callback_log_payload'] ?? false),
+            'attr'  => ['tooltip' => 'mailganer_callback.config.log_payload.tooltip'],
+        ]);
     }
 
     /**
