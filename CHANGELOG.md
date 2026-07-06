@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 - 2026-07-06
+
+- Added Sales Snap footer link to `sales-snap.ru` in the integration modal.
+
 ## 1.0.2 - 2026-02-26
 
 - Added dedicated callback debug file logging to `var/logs/Mailganer.log` (JSON lines).
