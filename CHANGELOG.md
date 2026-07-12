@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1 - 2026-07-12
+
+- Changed incoming webhook debug logging to use the standard Mautic logger only.
+  The plugin no longer writes a separate `Mailganer.log` file with
+  `file_put_contents`, matching the Sendgrid callback plugin behavior and
+  avoiding installation-layout-specific log paths.
+
 ## 1.0.4 - 2026-07-12
 
 - Fixed dedicated callback debug logging on Composer/docroot Mautic installs.

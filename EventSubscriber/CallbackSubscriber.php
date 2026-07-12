@@ -22,7 +22,6 @@ use Symfony\Component\Mime\Address;
 class CallbackSubscriber implements EventSubscriberInterface
 {
     private const MAX_LOGGED_BODY_LENGTH = 20000;
-    private const LOG_FILE_NAME = 'Mailganer.log';
 
     public function __construct(
         private TransportCallback $transportCallback,
@@ -63,7 +62,6 @@ class CallbackSubscriber implements EventSubscriberInterface
                 'body_trimmed' => strlen($rawBody) > self::MAX_LOGGED_BODY_LENGTH,
             ];
             $this->logger->info('Mailganer callback received', $context);
-            $this->appendToMailganerLog('callback_received', $context);
         }
 
         $payload = json_decode($rawBody, true);
@@ -74,7 +72,6 @@ class CallbackSubscriber implements EventSubscriberInterface
                     'json_error' => json_last_error_msg(),
                 ];
                 $this->logger->warning('Mailganer callback invalid JSON', $context);
-                $this->appendToMailganerLog('invalid_json', $context);
             }
             $event->setResponse(new Response('Invalid JSON', Response::HTTP_BAD_REQUEST));
 
@@ -87,7 +84,6 @@ class CallbackSubscriber implements EventSubscriberInterface
                     'payload_type' => gettype($payload),
                 ];
                 $this->logger->warning('Mailganer callback invalid payload type', $context);
-                $this->appendToMailganerLog('invalid_payload_type', $context);
             }
             $event->setResponse(new Response('Invalid payload', Response::HTTP_BAD_REQUEST));
 
@@ -105,7 +101,6 @@ class CallbackSubscriber implements EventSubscriberInterface
                     'xml_messages_count' => is_array($payload['xml_messages'] ?? null) ? count($payload['xml_messages']) : 0,
                 ];
                 $this->logger->info('Mailganer callback processed summary', $context);
-                $this->appendToMailganerLog('processed_summary', $context);
             }
 
             $event->setResponse(new Response(sprintf('Mailganer Callback processed (%d)', $processed)));
@@ -383,103 +378,5 @@ class CallbackSubscriber implements EventSubscriberInterface
         $integration = $this->integrationHelper->getIntegrationObject(MailganerCallbackIntegration::INTEGRATION_NAME);
 
         return $integration instanceof AbstractIntegration ? $integration : null;
-    }
-
-    /**
-     * @param array<string, mixed> $context
-     */
-    private function appendToMailganerLog(string $type, array $context): void
-    {
-        try {
-            $logPath = $this->resolveMailganerLogPath();
-            if (null === $logPath) {
-                $this->logger->warning('Failed to write Mailganer.log: Mautic project root could not be resolved.');
-
-                return;
-            }
-
-            $record     = [
-                'ts'      => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
-                'type'    => $type,
-                'context' => $context,
-            ];
-
-            file_put_contents($logPath, json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL, FILE_APPEND | LOCK_EX);
-        } catch (\Throwable $exception) {
-            $this->logger->warning('Failed to write Mailganer.log: '.$exception->getMessage());
-        }
-    }
-
-    private function resolveMailganerLogPath(): ?string
-    {
-        $mauticRoot = $this->resolveConfiguredMauticRoot() ?? $this->resolveMauticRoot(__DIR__);
-        if (null === $mauticRoot) {
-            return null;
-        }
-
-        $logDir = $mauticRoot.'/var/logs';
-        if (!is_dir($logDir) && !@mkdir($logDir, 0775, true) && !is_dir($logDir)) {
-            return null;
-        }
-
-        return $logDir.'/'.self::LOG_FILE_NAME;
-    }
-
-    private function resolveConfiguredMauticRoot(): ?string
-    {
-        foreach (['kernel.project_dir', 'mautic.project_dir', 'project_dir'] as $key) {
-            try {
-                $value = $this->coreParametersHelper->get($key);
-            } catch (\Throwable) {
-                continue;
-            }
-
-            if (!is_string($value) || '' === $value) {
-                continue;
-            }
-
-            $root = $this->normalizeMauticRoot($value);
-            if (null !== $root) {
-                return $root;
-            }
-        }
-
-        return null;
-    }
-
-    private function resolveMauticRoot(string $startDir): ?string
-    {
-        $dir = realpath($startDir);
-        if (false === $dir) {
-            return null;
-        }
-
-        while (true) {
-            if ($this->isMauticRoot($dir)) {
-                return $dir;
-            }
-
-            $parent = dirname($dir);
-            if ($parent === $dir) {
-                return null;
-            }
-
-            $dir = $parent;
-        }
-    }
-
-    private function normalizeMauticRoot(string $path): ?string
-    {
-        $root = realpath($path);
-        if (false === $root) {
-            return null;
-        }
-
-        return $this->isMauticRoot($root) ? $root : null;
-    }
-
-    private function isMauticRoot(string $path): bool
-    {
-        return is_file($path.'/bin/console') && is_dir($path.'/var');
     }
 }

@@ -66,4 +66,4 @@ You can also enable incoming webhook logging (`Log incoming webhook payload`) fo
 - When webhook logging is enabled, inspect Mautic logs (`var/logs/mautic_prod.php` or environment-specific log file) for records:
   - `Mailganer callback received`
   - `Mailganer callback processed summary`
-- A dedicated JSONL file is also written to `var/logs/Mailganer.log`.
+- The plugin does not write a separate callback log file; it uses the standard Mautic logger.

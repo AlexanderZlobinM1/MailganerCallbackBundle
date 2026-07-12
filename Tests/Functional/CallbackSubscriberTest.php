@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MauticPlugin\MailganerCallbackBundle\Tests\Functional\EventSubscriber;
 
 use Mautic\CoreBundle\Helper\CoreParametersHelper;
+use Mautic\EmailBundle\Event\TransportWebhookEvent;
 use Mautic\EmailBundle\Model\TransportCallback;
 use Mautic\LeadBundle\Entity\DoNotContact;
 use Mautic\PluginBundle\Entity\Integration as PluginIntegrationEntity;
@@ -14,6 +15,8 @@ use MauticPlugin\MailganerCallbackBundle\EventSubscriber\CallbackSubscriber;
 use MauticPlugin\MailganerCallbackBundle\Integration\MailganerCallbackIntegration;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class CallbackSubscriberTest extends TestCase
 {
@@ -141,40 +144,115 @@ class CallbackSubscriberTest extends TestCase
         self::assertSame(0, $this->invokeProcessPayload($subscriber, $eventPayload));
     }
 
-    public function testResolveMauticRootForClassicPluginLayout(): void
+    public function testProcessCallbackLogsThroughMauticLogger(): void
     {
-        $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class));
-        $projectRoot = $this->createMauticProjectRoot();
-        $eventSubscriberDir = $projectRoot.'/plugins/MailganerCallbackBundle/EventSubscriber';
-        mkdir($eventSubscriberDir, 0775, true);
+        $transportCallback = $this->createMock(TransportCallback::class);
+        $transportCallback
+            ->expects(self::once())
+            ->method('addFailureByAddress')
+            ->with(
+                'john.doe@example.com',
+                self::stringContains('mailbox not found'),
+                DoNotContact::BOUNCED,
+                42
+            );
 
-        self::assertSame($projectRoot, $this->invokeResolveMauticRoot($subscriber, $eventSubscriberDir));
+        $logger = $this->createMock(LoggerInterface::class);
+        $infoMessages = [];
+        $logger
+            ->expects(self::exactly(3))
+            ->method('info')
+            ->willReturnCallback(static function (string $message, array $context = []) use (&$infoMessages): void {
+                $infoMessages[$message] = $context;
+            });
+        $logger
+            ->expects(self::never())
+            ->method('warning');
+
+        $subscriber = $this->createSubscriber($transportCallback, [
+            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
+            'mailganer_callback_log_payload' => true,
+        ], $logger);
+
+        $request = Request::create(
+            '/mailer/callback',
+            'POST',
+            [],
+            [],
+            [],
+            [],
+            json_encode([
+                'xml_messages' => [
+                    [
+                        'status'     => 'failed',
+                        'email'      => 'john.doe@example.com',
+                        'reason'     => 'mailbox not found',
+                        'x_track_id' => '42',
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        $event = $this->createMock(TransportWebhookEvent::class);
+        $event
+            ->method('getRequest')
+            ->willReturn($request);
+        $event
+            ->expects(self::once())
+            ->method('setResponse')
+            ->with(self::callback(static fn (Response $response): bool => Response::HTTP_OK === $response->getStatusCode()));
+
+        $subscriber->processCallbackRequest($event);
+
+        self::assertArrayHasKey('Mailganer callback received', $infoMessages);
+        self::assertStringContainsString('john.doe@example.com', $infoMessages['Mailganer callback received']['raw_body']);
+        self::assertArrayHasKey('Processed Mailganer failed for john.doe@example.com', $infoMessages);
+        self::assertArrayHasKey('Mailganer callback processed summary', $infoMessages);
+        self::assertSame(1, $infoMessages['Mailganer callback processed summary']['processed']);
+        self::assertSame(1, $infoMessages['Mailganer callback processed summary']['xml_messages_count']);
     }
 
-    public function testResolveMauticRootForComposerDocrootPluginLayout(): void
+    public function testProcessCallbackInvalidJsonLogsThroughMauticLogger(): void
     {
-        $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class));
-        $projectRoot = $this->createMauticProjectRoot();
-        $eventSubscriberDir = $projectRoot.'/docroot/plugins/MailganerCallbackBundle/EventSubscriber';
-        mkdir($eventSubscriberDir, 0775, true);
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger
+            ->expects(self::once())
+            ->method('info')
+            ->with(
+                'Mailganer callback received',
+                self::callback(static fn (array $context): bool => '{bad' === $context['raw_body'])
+            );
+        $logger
+            ->expects(self::once())
+            ->method('warning')
+            ->with(
+                'Mailganer callback invalid JSON',
+                self::callback(static fn (array $context): bool => isset($context['json_error']))
+            );
 
-        self::assertSame($projectRoot, $this->invokeResolveMauticRoot($subscriber, $eventSubscriberDir));
-    }
-
-    public function testResolveConfiguredMauticRootUsesProjectParameter(): void
-    {
-        $projectRoot = $this->createMauticProjectRoot();
         $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class), [
-            'kernel.project_dir' => $projectRoot,
-        ]);
+            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
+            'mailganer_callback_log_payload' => true,
+        ], $logger);
 
-        self::assertSame($projectRoot, $this->invokeResolveConfiguredMauticRoot($subscriber));
+        $request = Request::create('/mailer/callback', 'POST', [], [], [], [], '{bad');
+
+        $event = $this->createMock(TransportWebhookEvent::class);
+        $event
+            ->method('getRequest')
+            ->willReturn($request);
+        $event
+            ->expects(self::once())
+            ->method('setResponse')
+            ->with(self::callback(static fn (Response $response): bool => Response::HTTP_BAD_REQUEST === $response->getStatusCode()));
+
+        $subscriber->processCallbackRequest($event);
     }
 
     /**
      * @param array<string, mixed> $config
      */
-    private function createSubscriber(TransportCallback $transportCallback, array $config = []): CallbackSubscriber
+    private function createSubscriber(TransportCallback $transportCallback, array $config = [], ?LoggerInterface $logger = null): CallbackSubscriber
     {
         $coreParametersHelper = $this->createMock(CoreParametersHelper::class);
         $coreParametersHelper
@@ -200,7 +278,7 @@ class CallbackSubscriberTest extends TestCase
             ->with(MailganerCallbackIntegration::INTEGRATION_NAME)
             ->willReturn($integration);
 
-        $logger = $this->createMock(LoggerInterface::class);
+        $logger ??= $this->createMock(LoggerInterface::class);
 
         return new CallbackSubscriber($transportCallback, $coreParametersHelper, $integrationHelper, $logger);
     }
@@ -219,35 +297,4 @@ class CallbackSubscriberTest extends TestCase
         return $result;
     }
 
-    private function invokeResolveMauticRoot(CallbackSubscriber $subscriber, string $startDir): ?string
-    {
-        $reflection = new \ReflectionMethod($subscriber, 'resolveMauticRoot');
-        $reflection->setAccessible(true);
-
-        /** @var ?string $result */
-        $result = $reflection->invoke($subscriber, $startDir);
-
-        return $result;
-    }
-
-    private function invokeResolveConfiguredMauticRoot(CallbackSubscriber $subscriber): ?string
-    {
-        $reflection = new \ReflectionMethod($subscriber, 'resolveConfiguredMauticRoot');
-        $reflection->setAccessible(true);
-
-        /** @var ?string $result */
-        $result = $reflection->invoke($subscriber);
-
-        return $result;
-    }
-
-    private function createMauticProjectRoot(): string
-    {
-        $projectRoot = sys_get_temp_dir().'/mailganer-root-'.bin2hex(random_bytes(8));
-        mkdir($projectRoot.'/bin', 0775, true);
-        mkdir($projectRoot.'/var/logs', 0775, true);
-        touch($projectRoot.'/bin/console');
-
-        return $projectRoot;
-    }
 }
