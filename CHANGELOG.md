@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4 - 2026-07-12
+
+- Fixed dedicated callback debug logging on Composer/docroot Mautic installs.
+  `Mailganer.log` now resolves the real Mautic project root by locating
+  `bin/console` and `var/`, so logs are written to the project-level
+  `var/logs` directory instead of a non-existent `docroot/var/logs` path.
+
 ## 1.0.3 - 2026-07-06
 
 - Added Sales Snap footer link to `sales-snap.ru` in the integration modal.

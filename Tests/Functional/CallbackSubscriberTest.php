@@ -141,6 +141,36 @@ class CallbackSubscriberTest extends TestCase
         self::assertSame(0, $this->invokeProcessPayload($subscriber, $eventPayload));
     }
 
+    public function testResolveMauticRootForClassicPluginLayout(): void
+    {
+        $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class));
+        $projectRoot = $this->createMauticProjectRoot();
+        $eventSubscriberDir = $projectRoot.'/plugins/MailganerCallbackBundle/EventSubscriber';
+        mkdir($eventSubscriberDir, 0775, true);
+
+        self::assertSame($projectRoot, $this->invokeResolveMauticRoot($subscriber, $eventSubscriberDir));
+    }
+
+    public function testResolveMauticRootForComposerDocrootPluginLayout(): void
+    {
+        $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class));
+        $projectRoot = $this->createMauticProjectRoot();
+        $eventSubscriberDir = $projectRoot.'/docroot/plugins/MailganerCallbackBundle/EventSubscriber';
+        mkdir($eventSubscriberDir, 0775, true);
+
+        self::assertSame($projectRoot, $this->invokeResolveMauticRoot($subscriber, $eventSubscriberDir));
+    }
+
+    public function testResolveConfiguredMauticRootUsesProjectParameter(): void
+    {
+        $projectRoot = $this->createMauticProjectRoot();
+        $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class), [
+            'kernel.project_dir' => $projectRoot,
+        ]);
+
+        self::assertSame($projectRoot, $this->invokeResolveConfiguredMauticRoot($subscriber));
+    }
+
     /**
      * @param array<string, mixed> $config
      */
@@ -187,5 +217,37 @@ class CallbackSubscriberTest extends TestCase
         $result = $reflection->invoke($subscriber, $payload);
 
         return $result;
+    }
+
+    private function invokeResolveMauticRoot(CallbackSubscriber $subscriber, string $startDir): ?string
+    {
+        $reflection = new \ReflectionMethod($subscriber, 'resolveMauticRoot');
+        $reflection->setAccessible(true);
+
+        /** @var ?string $result */
+        $result = $reflection->invoke($subscriber, $startDir);
+
+        return $result;
+    }
+
+    private function invokeResolveConfiguredMauticRoot(CallbackSubscriber $subscriber): ?string
+    {
+        $reflection = new \ReflectionMethod($subscriber, 'resolveConfiguredMauticRoot');
+        $reflection->setAccessible(true);
+
+        /** @var ?string $result */
+        $result = $reflection->invoke($subscriber);
+
+        return $result;
+    }
+
+    private function createMauticProjectRoot(): string
+    {
+        $projectRoot = sys_get_temp_dir().'/mailganer-root-'.bin2hex(random_bytes(8));
+        mkdir($projectRoot.'/bin', 0775, true);
+        mkdir($projectRoot.'/var/logs', 0775, true);
+        touch($projectRoot.'/bin/console');
+
+        return $projectRoot;
     }
 }

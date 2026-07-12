@@ -391,8 +391,13 @@ class CallbackSubscriber implements EventSubscriberInterface
     private function appendToMailganerLog(string $type, array $context): void
     {
         try {
-            $mauticRoot = dirname(__DIR__, 3);
-            $logPath    = $mauticRoot.'/var/logs/'.self::LOG_FILE_NAME;
+            $logPath = $this->resolveMailganerLogPath();
+            if (null === $logPath) {
+                $this->logger->warning('Failed to write Mailganer.log: Mautic project root could not be resolved.');
+
+                return;
+            }
+
             $record     = [
                 'ts'      => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
                 'type'    => $type,
@@ -403,5 +408,78 @@ class CallbackSubscriber implements EventSubscriberInterface
         } catch (\Throwable $exception) {
             $this->logger->warning('Failed to write Mailganer.log: '.$exception->getMessage());
         }
+    }
+
+    private function resolveMailganerLogPath(): ?string
+    {
+        $mauticRoot = $this->resolveConfiguredMauticRoot() ?? $this->resolveMauticRoot(__DIR__);
+        if (null === $mauticRoot) {
+            return null;
+        }
+
+        $logDir = $mauticRoot.'/var/logs';
+        if (!is_dir($logDir) && !@mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+            return null;
+        }
+
+        return $logDir.'/'.self::LOG_FILE_NAME;
+    }
+
+    private function resolveConfiguredMauticRoot(): ?string
+    {
+        foreach (['kernel.project_dir', 'mautic.project_dir', 'project_dir'] as $key) {
+            try {
+                $value = $this->coreParametersHelper->get($key);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if (!is_string($value) || '' === $value) {
+                continue;
+            }
+
+            $root = $this->normalizeMauticRoot($value);
+            if (null !== $root) {
+                return $root;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveMauticRoot(string $startDir): ?string
+    {
+        $dir = realpath($startDir);
+        if (false === $dir) {
+            return null;
+        }
+
+        while (true) {
+            if ($this->isMauticRoot($dir)) {
+                return $dir;
+            }
+
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                return null;
+            }
+
+            $dir = $parent;
+        }
+    }
+
+    private function normalizeMauticRoot(string $path): ?string
+    {
+        $root = realpath($path);
+        if (false === $root) {
+            return null;
+        }
+
+        return $this->isMauticRoot($root) ? $root : null;
+    }
+
+    private function isMauticRoot(string $path): bool
+    {
+        return is_file($path.'/bin/console') && is_dir($path.'/var');
     }
 }
