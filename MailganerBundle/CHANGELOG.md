@@ -1,0 +1,27 @@
+# Changelog
+
+## 1.1.0 - 2026-03-04
+
+- Added Mailganer API sending transport (`mailganer+api://` DSN).
+- Implemented API request mapping to `POST /api/v2/mail/send`.
+- Added automatic `x_track_id` generation when missing.
+- Added forwarding of `X-Track-ID` in custom email headers.
+- Kept callback processing and DNC mapping compatible with lite plugin.
+- Extended callback transport guard to support Mailganer API DSN scheme.
+
+## 1.0.2 - 2026-02-26
+
+- Added dedicated callback debug file logging to `var/logs/Mailganer.log` (JSON lines).
+
+## 1.0.1 - 2026-02-26
+
+- Added optional debug logging switch for incoming webhooks in integration settings.
+- Added detailed inbound callback logs (IP, headers, raw body, processing summary) for provider-side diagnostics.
+
+## 1.0.0 - 2026-02-25
+
+- Initial Mailganer (Samotpravil) callback plugin for Mautic 5/6/7.
+- Added webhook processing for `failed`, `fbl`, `unsubscribe` statuses.
+- Added support for both webhook payload envelopes: `messages` and `xml_messages`.
+- Added integration modal switches for each supported status.
+- Added SMTP transport host guard for `api.samotpravil.ru` and `smtp.mailganer.com`.

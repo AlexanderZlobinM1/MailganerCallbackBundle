@@ -67,3 +67,18 @@ You can also enable incoming webhook logging (`Log incoming webhook payload`) fo
   - `Mailganer callback received`
   - `Mailganer callback processed summary`
 - A dedicated JSONL file is also written to `var/logs/Mailganer.log`.
+
+## Two-plugin layout
+
+This repository contains two independent plugins:
+
+- `MailganerCallbackBundle` (lite, callback only) - root directory
+- `MailganerBundle` (full, API sending + callback) - `MailganerBundle/`
+
+Shared callback files are synchronized from lite to full via:
+
+```bash
+./scripts/sync-lite-to-full.sh
+```
+
+CI workflow checks that sync is not missed (`.github/workflows/sync-callback.yml`).

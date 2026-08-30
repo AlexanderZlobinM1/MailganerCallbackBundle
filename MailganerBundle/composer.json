@@ -1,0 +1,39 @@
+{
+    "name": "azlobin/mautic-mailganer",
+    "description": "Mautic plugin for Mailganer (Samotpravil): API email sending and webhook callback processing.",
+    "type": "mautic-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alexander Zlobin"
+        }
+    ],
+    "keywords": [
+        "mautic",
+        "plugin",
+        "mailganer",
+        "samotpravil",
+        "webhook",
+        "mailer",
+        "api"
+    ],
+    "require": {
+        "php": ">=8.1",
+        "mautic/core-lib": "^5.0 || ^6.0 || ^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MauticPlugin\\MailganerBundle\\": ""
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MauticPlugin\\MailganerBundle\\Tests\\": "Tests/"
+        }
+    },
+    "extra": {
+        "install-directory-name": "MailganerBundle"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

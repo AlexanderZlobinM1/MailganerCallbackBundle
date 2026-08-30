@@ -1,0 +1,28 @@
+name: Sync Callback Consistency
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  verify-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run sync script
+        run: ./scripts/sync-lite-to-full.sh
+
+      - name: Ensure full plugin is up to date
+        run: |
+          git diff --exit-code -- \
+            MailganerBundle/EventSubscriber/CallbackSubscriber.php \
+            MailganerBundle/Tests/Functional/CallbackSubscriberTest.php \
+            MailganerBundle/Integration/MailganerIntegration.php \
+            MailganerBundle/Translations/en_US/messages.ini \
+            MailganerBundle/Translations/ru_RU/messages.ini \
+            MailganerBundle/Translations/sr_RS/messages.ini \
+            MailganerBundle/Assets/img/icon.svg \
+            MailganerBundle/Assets/img/icon.png
