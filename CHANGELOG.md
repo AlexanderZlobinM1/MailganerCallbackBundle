@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.1 - 2026-08-30
+
+- Added standalone PHPUnit development dependencies and a Composer test script.
+- Corrected the disabled-plugin regression test to exercise the public webhook
+  handler on current Mautic versions.
+- Added the canonical `ru` translation catalog while retaining legacy `ru_RU`.
+
+## 1.1 - 2026-07-12
+
+- Changed incoming webhook debug logging to use the standard Mautic logger only.
+  The plugin no longer writes a separate `Mailganer.log` file with
+  `file_put_contents`, matching the Sendgrid callback plugin behavior and
+  avoiding installation-layout-specific log paths.
+
+## 1.0.4 - 2026-07-12
+
+- Fixed dedicated callback debug logging on Composer/docroot Mautic installs.
+  `Mailganer.log` now resolves the real Mautic project root by locating
+  `bin/console` and `var/`, so logs are written to the project-level
+  `var/logs` directory instead of a non-existent `docroot/var/logs` path.
+
+## 1.0.3 - 2026-07-06
+
+- Added Sales Snap footer link to `sales-snap.ru` in the integration modal.
+
 ## 1.0.2 - 2026-02-26
 
 - Added dedicated callback debug file logging to `var/logs/Mailganer.log` (JSON lines).
