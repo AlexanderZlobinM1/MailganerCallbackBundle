@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0-dev - unreleased
+## 1.2.0 - 2026-08-30
 
 - Added a publication guard to the API transport factory: an unpublished
   integration neither advertises nor creates the Mailganer transport.
