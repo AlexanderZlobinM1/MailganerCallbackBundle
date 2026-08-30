@@ -223,7 +223,12 @@ final class MailganerApiTransport extends AbstractApiTransport
 
     private function stringifyAddress(Address $address): string
     {
-        return $address->toString();
+        $name = trim($address->getName());
+        if ('' === $name) {
+            return $address->getAddress();
+        }
+
+        return sprintf('%s <%s>', $name, $address->getAddress());
     }
 
     private function getEndpoint(): string

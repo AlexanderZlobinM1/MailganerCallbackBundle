@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0-dev - unreleased
+
+- Added a publication guard to the API transport factory: an unpublished
+  integration neither advertises nor creates the Mailganer transport.
+- Switched callback diagnostics to the standard Mautic logger only.
+- Added canonical `ru` translations and standalone PHPUnit dependencies.
+- Aligned `email_from` formatting and API payload assertions with the official
+  Mailganer v2 send contract.
+
 ## 1.1.0 - 2026-03-04
 
 - Added Mailganer API sending transport (`mailganer+api://` DSN).

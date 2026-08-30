@@ -53,7 +53,7 @@ class MailganerApiTransportTest extends TestCase
         self::assertSame('POST', $capturedOptions['method']);
         self::assertSame('https://api.samotpravil.ru/api/v2/mail/send', $capturedOptions['url']);
 
-        $payload = $capturedOptions['options']['json'];
+        $payload = json_decode($capturedOptions['options']['body'], true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame('Sender <sender@example.com>', $payload['email_from']);
         self::assertSame('recipient@example.com', $payload['email_to']);
@@ -67,7 +67,10 @@ class MailganerApiTransportTest extends TestCase
         self::assertArrayHasKey('x_track_id', $payload);
         self::assertNotSame('', $payload['x_track_id']);
         self::assertSame($payload['x_track_id'], $payload['headers']['X-Track-ID']);
-        self::assertSame('api-key-123', $capturedOptions['options']['headers']['Authorization']);
+        self::assertSame(
+            ['Authorization: api-key-123'],
+            $capturedOptions['options']['normalized_headers']['authorization']
+        );
     }
 
     public function testProviderErrorStatusThrowsTransportException(): void

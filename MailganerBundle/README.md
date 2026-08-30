@@ -67,7 +67,8 @@ The plugin processes statuses from `messages` and `xml_messages`:
 If `Log incoming webhook payload` is enabled in plugin settings, logs are written to:
 
 - Mautic default log (`var/logs/mautic_*.php`)
-- dedicated file `var/logs/Mailganer.log`
+
+The plugin does not write a separate callback log file.
 
 ## API Notes
 

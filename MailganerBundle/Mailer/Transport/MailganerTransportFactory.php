@@ -4,19 +4,39 @@ declare(strict_types=1);
 
 namespace MauticPlugin\MailganerBundle\Mailer\Transport;
 
+use Mautic\PluginBundle\Helper\IntegrationHelper;
+use Mautic\PluginBundle\Integration\AbstractIntegration;
+use MauticPlugin\MailganerBundle\Integration\MailganerIntegration;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Mailer\Exception\IncompleteDsnException;
 use Symfony\Component\Mailer\Exception\UnsupportedSchemeException;
 use Symfony\Component\Mailer\Transport\AbstractTransportFactory;
 use Symfony\Component\Mailer\Transport\Dsn;
 use Symfony\Component\Mailer\Transport\TransportInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class MailganerTransportFactory extends AbstractTransportFactory
 {
+    public function __construct(
+        private IntegrationHelper $integrationHelper,
+        ?EventDispatcherInterface $dispatcher = null,
+        ?HttpClientInterface $client = null,
+        ?LoggerInterface $logger = null,
+    ) {
+        parent::__construct($dispatcher, $client, $logger);
+    }
+
+    public function supports(Dsn $dsn): bool
+    {
+        return $this->isPluginEnabled() && parent::supports($dsn);
+    }
+
     public function create(Dsn $dsn): TransportInterface
     {
         $scheme = $dsn->getScheme();
 
-        if (!in_array($scheme, $this->getSupportedSchemes(), true)) {
+        if (!$this->isPluginEnabled() || !in_array($scheme, $this->getSupportedSchemes(), true)) {
             throw new UnsupportedSchemeException($dsn, 'mailganer', $this->getSupportedSchemes());
         }
 
@@ -42,6 +62,18 @@ final class MailganerTransportFactory extends AbstractTransportFactory
     protected function getSupportedSchemes(): array
     {
         return ['mailganer', 'mailganer+api'];
+    }
+
+    private function isPluginEnabled(): bool
+    {
+        $integration = $this->integrationHelper->getIntegrationObject(MailganerIntegration::INTEGRATION_NAME);
+        if (!$integration instanceof AbstractIntegration) {
+            return false;
+        }
+
+        $settings = $integration->getIntegrationSettings();
+
+        return null !== $settings && (bool) $settings->getIsPublished();
     }
 
     private function resolveApiKey(Dsn $dsn): string

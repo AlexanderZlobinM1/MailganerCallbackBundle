@@ -22,6 +22,7 @@ jobs:
             MailganerBundle/Tests/Functional/CallbackSubscriberTest.php \
             MailganerBundle/Integration/MailganerIntegration.php \
             MailganerBundle/Translations/en_US/messages.ini \
+            MailganerBundle/Translations/ru/messages.ini \
             MailganerBundle/Translations/ru_RU/messages.ini \
             MailganerBundle/Translations/sr_RS/messages.ini \
             MailganerBundle/Assets/img/icon.svg \
