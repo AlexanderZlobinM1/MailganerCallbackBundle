@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 - 2026-08-30
+
+- Added standalone PHPUnit development dependencies and a Composer test script.
+- Corrected the disabled-plugin regression test to exercise the public webhook
+  handler on current Mautic versions.
+- Added the canonical `ru` translation catalog while retaining legacy `ru_RU`.
+
 ## 1.1 - 2026-07-12
 
 - Changed incoming webhook debug logging to use the standard Mautic logger only.

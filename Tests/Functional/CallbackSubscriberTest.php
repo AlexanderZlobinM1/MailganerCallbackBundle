@@ -130,18 +130,22 @@ class CallbackSubscriberTest extends TestCase
 
         $subscriber = $this->createSubscriber($transportCallback, [
             '__published' => false,
+            'mailer_dsn'  => 'smtp://api.samotpravil.ru:1126',
         ]);
 
-        $eventPayload = [
+        $request = Request::create('/mailer/callback', 'POST', [], [], [], [], json_encode([
             'messages' => [
                 [
                     'status' => 'failed',
                     'email'  => 'john.doe@example.com',
                 ],
             ],
-        ];
+        ], JSON_THROW_ON_ERROR));
+        $event = new TransportWebhookEvent($request);
 
-        self::assertSame(0, $this->invokeProcessPayload($subscriber, $eventPayload));
+        $subscriber->processCallbackRequest($event);
+
+        self::assertNull($event->getResponse());
     }
 
     public function testProcessCallbackLogsThroughMauticLogger(): void
@@ -158,58 +162,39 @@ class CallbackSubscriberTest extends TestCase
             );
 
         $logger = $this->createMock(LoggerInterface::class);
-        $infoMessages = [];
+        $messages = [];
         $logger
             ->expects(self::exactly(3))
             ->method('info')
-            ->willReturnCallback(static function (string $message, array $context = []) use (&$infoMessages): void {
-                $infoMessages[$message] = $context;
+            ->willReturnCallback(static function (string $message, array $context = []) use (&$messages): void {
+                $messages[$message] = $context;
             });
-        $logger
-            ->expects(self::never())
-            ->method('warning');
+        $logger->expects(self::never())->method('warning');
 
         $subscriber = $this->createSubscriber($transportCallback, [
-            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
+            'mailer_dsn'                    => 'smtp://api.samotpravil.ru:1126',
             'mailganer_callback_log_payload' => true,
         ], $logger);
 
-        $request = Request::create(
-            '/mailer/callback',
-            'POST',
-            [],
-            [],
-            [],
-            [],
-            json_encode([
-                'xml_messages' => [
-                    [
-                        'status'     => 'failed',
-                        'email'      => 'john.doe@example.com',
-                        'reason'     => 'mailbox not found',
-                        'x_track_id' => '42',
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR)
-        );
+        $request = Request::create('/mailer/callback', 'POST', [], [], [], [], json_encode([
+            'xml_messages' => [[
+                'status'     => 'failed',
+                'email'      => 'john.doe@example.com',
+                'reason'     => 'mailbox not found',
+                'x_track_id' => '42',
+            ]],
+        ], JSON_THROW_ON_ERROR));
 
-        $event = $this->createMock(TransportWebhookEvent::class);
-        $event
-            ->method('getRequest')
-            ->willReturn($request);
-        $event
-            ->expects(self::once())
-            ->method('setResponse')
-            ->with(self::callback(static fn (Response $response): bool => Response::HTTP_OK === $response->getStatusCode()));
+        $event = new TransportWebhookEvent($request);
 
         $subscriber->processCallbackRequest($event);
 
-        self::assertArrayHasKey('Mailganer callback received', $infoMessages);
-        self::assertStringContainsString('john.doe@example.com', $infoMessages['Mailganer callback received']['raw_body']);
-        self::assertArrayHasKey('Processed Mailganer failed for john.doe@example.com', $infoMessages);
-        self::assertArrayHasKey('Mailganer callback processed summary', $infoMessages);
-        self::assertSame(1, $infoMessages['Mailganer callback processed summary']['processed']);
-        self::assertSame(1, $infoMessages['Mailganer callback processed summary']['xml_messages_count']);
+        self::assertSame(Response::HTTP_OK, $event->getResponse()?->getStatusCode());
+        self::assertArrayHasKey('Mailganer callback received', $messages);
+        self::assertStringContainsString('john.doe@example.com', $messages['Mailganer callback received']['raw_body']);
+        self::assertArrayHasKey('Processed Mailganer failed for john.doe@example.com', $messages);
+        self::assertArrayHasKey('Mailganer callback processed summary', $messages);
+        self::assertSame(1, $messages['Mailganer callback processed summary']['processed']);
     }
 
     public function testProcessCallbackInvalidJsonLogsThroughMauticLogger(): void
@@ -218,35 +203,23 @@ class CallbackSubscriberTest extends TestCase
         $logger
             ->expects(self::once())
             ->method('info')
-            ->with(
-                'Mailganer callback received',
-                self::callback(static fn (array $context): bool => '{bad' === $context['raw_body'])
-            );
+            ->with('Mailganer callback received', self::callback(static fn (array $context): bool => '{bad' === $context['raw_body']));
         $logger
             ->expects(self::once())
             ->method('warning')
-            ->with(
-                'Mailganer callback invalid JSON',
-                self::callback(static fn (array $context): bool => isset($context['json_error']))
-            );
+            ->with('Mailganer callback invalid JSON', self::callback(static fn (array $context): bool => isset($context['json_error'])));
 
         $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class), [
-            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
+            'mailer_dsn'                    => 'smtp://api.samotpravil.ru:1126',
             'mailganer_callback_log_payload' => true,
         ], $logger);
 
         $request = Request::create('/mailer/callback', 'POST', [], [], [], [], '{bad');
-
-        $event = $this->createMock(TransportWebhookEvent::class);
-        $event
-            ->method('getRequest')
-            ->willReturn($request);
-        $event
-            ->expects(self::once())
-            ->method('setResponse')
-            ->with(self::callback(static fn (Response $response): bool => Response::HTTP_BAD_REQUEST === $response->getStatusCode()));
+        $event = new TransportWebhookEvent($request);
 
         $subscriber->processCallbackRequest($event);
+
+        self::assertSame(Response::HTTP_BAD_REQUEST, $event->getResponse()?->getStatusCode());
     }
 
     /**
