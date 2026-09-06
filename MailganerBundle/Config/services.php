@@ -13,7 +13,10 @@ return function (ContainerConfigurator $configurator): void {
         ->autoconfigure()
         ->public();
 
-    $excludes = [];
+    $excludes = ['Mailer/Transport/MailganerApiTransport.php'];
+
+    // Legacy config.php treats FQCN arguments as strings, not service references.
+    $services->alias('mailganerbundle.helper.encryption', \Mautic\CoreBundle\Helper\EncryptionHelper::class);
 
     $services->load('MauticPlugin\\MailganerBundle\\', '../')
         ->exclude('../{'.implode(',', array_merge(MauticCoreExtension::DEFAULT_EXCLUDES, $excludes)).'}');

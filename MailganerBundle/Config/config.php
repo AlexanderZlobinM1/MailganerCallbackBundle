@@ -5,10 +5,10 @@ declare(strict_types=1);
 use Mautic\CoreBundle\Helper\AppVersion;
 use MauticPlugin\MailganerBundle\Integration\MailganerIntegration;
 
-$mauticVersion = str_replace('.', '', explode('-', (new AppVersion())->getVersion())[0]);
+$mauticVersion = (int) (new AppVersion())->getVersion();
 
 switch (true) {
-    case $mauticVersion >= 600:
+    case $mauticVersion >= 6:
         $defaultIntegrationArguments = [
             'event_dispatcher',
             'mautic.helper.cache_storage',
@@ -17,7 +17,7 @@ switch (true) {
             'router',
             'translator',
             'monolog.logger.mautic',
-            'mautic.helper.encryption',
+            'mailganerbundle.helper.encryption',
             'mautic.lead.model.lead',
             'mautic.lead.model.company',
             'mautic.helper.paths',
@@ -25,10 +25,10 @@ switch (true) {
             'mautic.lead.model.field',
             'mautic.plugin.model.integration_entity',
             'mautic.lead.model.dnc',
-            'mautic.lead.field.fields_with_unique_identifier',
+            ...($mauticVersion >= 6 ? ['mautic.lead.field.fields_with_unique_identifier'] : []),
         ];
         break;
-    case $mauticVersion >= 500:
+    case $mauticVersion >= 5:
         $defaultIntegrationArguments = [
             'event_dispatcher',
             'mautic.helper.cache_storage',
@@ -38,7 +38,7 @@ switch (true) {
             'router',
             'translator',
             'monolog.logger.mautic',
-            'mautic.helper.encryption',
+            'mailganerbundle.helper.encryption',
             'mautic.lead.model.lead',
             'mautic.lead.model.company',
             'mautic.helper.paths',
@@ -46,7 +46,7 @@ switch (true) {
             'mautic.lead.model.field',
             'mautic.plugin.model.integration_entity',
             'mautic.lead.model.dnc',
-            'mautic.lead.field.fields_with_unique_identifier',
+            ...($mauticVersion >= 6 ? ['mautic.lead.field.fields_with_unique_identifier'] : []),
         ];
         break;
     default:
@@ -57,7 +57,7 @@ return [
     'name'        => 'Mailganer',
     'description' => 'Mailganer (Samotpravil) API transport and callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap.',
     'author'      => 'Alexander Zlobin',
-    'version'     => '1.2.0',
+    'version'     => '1.2.1',
     'services'    => [
         'integrations' => [
             'mautic.integration.mailganer' => [
