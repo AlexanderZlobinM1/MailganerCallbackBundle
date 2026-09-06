@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.1] - 2026-09-06
+
+- Make the Sales Snap branding in the integration footer an active link to `https://sales-snap.ru`.
+
 ## [1.5.0] - 2026-09-06
 
 - Share the Mailganer integration identity and common setting fields between API and Callback variants. Native installation and migration adopt legacy callback settings without changing explicit publication state.
