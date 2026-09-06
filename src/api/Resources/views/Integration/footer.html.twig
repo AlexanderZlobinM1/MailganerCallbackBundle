@@ -1,0 +1,14 @@
+<div id="mailganer-settings-footer" data-mailganer-settings-footer style="margin-top: 40px; color: #4a4a4a; font-size: 12px; line-height: 1.5;">
+    <div style="margin-bottom: 10px;">
+        API DSN example:
+        <code>mailganer+api://default?key=YOUR_API_KEY</code>
+    </div>
+    <div style="margin-bottom: 10px;">
+        Callback endpoint: <code>/mailer/callback</code>
+    </div>
+    <div>
+        {% include '@Mailganer/Integration/brand.html.twig' %}
+    </div>
+</div>
+
+<script>{% include '@Mailganer/Integration/settings-state.js.twig' %}</script>

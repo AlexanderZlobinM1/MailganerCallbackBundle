@@ -1,109 +1,46 @@
-# Mautic Mailganer Callback
+# Mailganer plugins for Mautic
 
-Plugin for Mautic 5/6/7 to process Mailganer (Samotpravil) webhook callbacks and mark contacts as Do Not Contact for email channel.
+One source tree builds two independent plugins for Mautic 5, 6 and 7:
 
-This plugin does not send email. Email sending is handled by Symfony SMTP transport configured in Mautic.
+| Package | Features | Source additions |
+| --- | --- | --- |
+| MailganerCallbackBundle | Callbacks for SMTP delivery | `src/callback` |
+| MailganerBundle | API delivery, concurrency, packages, speed control and callbacks | `src/api` |
 
-Company: Sales Snap  
-Author: Alexander Zlobin
+`src/shared` is the sole source for callback parsing, DNC attribution, shared
+settings, the integration form, translations and regression tests. Variant
+files may not override shared paths. Sending controls and supported transport
+schemes are declared by each variant's `Variant.php`.
 
-## Supported mailer transports
+## Install
 
-The plugin handles callbacks only when Mautic SMTP DSN points to one of hosts:
+Download the named ZIP asset from a GitHub release or install through MCC.
+Extract the included bundle directory into Mautic's `plugins` directory
+(`docroot/plugins` for Composer installations), then run
+`php bin/console mautic:plugins:reload` and clear the cache.
+The GitHub source archive is a development tree, not an installable plugin.
+Each release ZIP contains its own PHP, assets, Composer metadata and tests;
+neither plugin needs the other plugin or a separately installed shared library.
+Install only one variant at a time. Existing native settings remain transferable.
 
-- `api.samotpravil.ru`
-- `smtp.mailganer.com`
+- [Callback configuration](src/callback/README.md)
+- [API configuration](src/api/README.md)
 
-## Processed statuses
+## Build and test
 
-The plugin handles these Mailganer statuses from `messages` and `xml_messages` arrays:
+Run `python3 scripts/build.py --output /absolute/path/to/a/new/output-directory`.
+This emits both bundle directories, versioned ZIPs and `SHA256SUMS` outside
+the repository. `packages.json` owns both release versions. The build substitutes
+explicit package identity tokens only; it never synchronizes or rewrites PHP
+logic between source trees. Repeated builds produce byte-identical archives.
 
-- `failed` -> `DoNotContact::BOUNCED`
-- `fbl` -> `DoNotContact::UNSUBSCRIBED`
-- `unsubscribe` -> `DoNotContact::UNSUBSCRIBED`
+Run `python3 -m unittest discover -s build_tests`. Inside each generated bundle,
+run `composer install` and `vendor/bin/phpunit`. CI builds and tests both bundles
+independently on PHP 8.2/8.4 with Mautic 5/6/7. Tags beginning with `release-`
+publish the tested archives as release assets.
 
-All other statuses (`accepted`, `delivered`, `open`, `click`, `duplicate`, etc.) are ignored.
+Common changes belong in `src/shared`; API-only sending changes belong in
+`src/api`. Do not commit generated packages or vendor trees. MCC must point
+to the versioned release ZIP, never a subdirectory or GitHub source archive.
 
-## Installation
-
-1. Copy plugin directory to your Mautic installation:
-
-```bash
-cp -R MailganerCallbackBundle /path/to/mautic/docroot/plugins/
-```
-
-Or install from ZIP by extracting `MailganerCallbackBundle` into:
-
-```text
-/path/to/mautic/docroot/plugins/MailganerCallbackBundle
-```
-
-2. Reload plugins and clear cache:
-
-```bash
-php bin/console mautic:plugins:reload
-php bin/console cache:clear
-```
-
-3. Configure Mailganer webhook endpoint:
-
-```text
-https://mautic.example.com/mailer/callback
-```
-
-4. Ask Mailganer support to activate webhook for your sending domain and endpoint URL.
-
-5. Open plugin card in Mautic Plugins and configure settings directly in plugin modal.
-
-Use switches to enable/disable processing for `failed`, `fbl`, and `unsubscribe` statuses.
-You can also enable incoming webhook logging (`Log incoming webhook payload`) for provider diagnostics.
-
-## Notes
-
-- Plugin accepts both webhook payload formats: `messages` (single sends) and `xml_messages` (batch sends).
-- Email is extracted from `email`, `recipient`, `to`, or `address` field.
-- Email attribution uses explicit `X-EMAIL-ID` metadata or a structured tracking marker; provider message IDs are not Mautic email IDs.
-- When webhook logging is enabled, inspect Mautic logs (`var/logs/mautic_prod.php` or environment-specific log file) for records:
-  - `Mailganer callback received`
-  - `Mailganer callback processed summary`
-- The plugin does not write a separate callback log file; it uses the standard Mautic logger.
-
-## Two-plugin layout
-
-This repository contains two independent plugins:
-
-- `MailganerCallbackBundle` (lite, callback only) - root directory
-- `MailganerBundle` (full, API sending + callback) - `MailganerBundle/`
-
-Shared callback files are synchronized from lite to full via:
-
-```bash
-./scripts/sync-lite-to-full.sh
-```
-
-CI workflow checks that sync is not missed (`.github/workflows/sync-callback.yml`).
-
-## Release 1.1.3 attribution
-
-Outgoing Mautic emails carry an explicit email ID and structured tracking marker. Callback attribution accepts those markers; arbitrary numeric `message_id` / `x_track_id` values are not Mautic IDs. Database failures return HTTP 503. See `LINEAGE_AUDIT.md` for the SES/SendGrid/Mailganer audit.
-
-For API delivery and packages, install the separate **MailganerBundle** release asset and follow [its README](MailganerBundle/README.md). Disable this Callback integration when switching to the full integration.
-
-## Shared settings and removal
-
-Install only one Mailganer variant at a time. Both use integration `Mailganer`
-and common fields `mailganer_handle_failed`, `mailganer_handle_fbl`,
-`mailganer_handle_unsubscribe` and `mailganer_log_payload`. The plugin's native
-lifecycle adopts legacy `MailganerCallback` settings and preserves existing
-canonical values, including an explicit disabled state. Saving the Callback
-form retains the full variant's rate and concurrency settings for a later switch.
-MCC does not migrate or interpret these values.
-
-A disabled general switch dims and locks the dependent fields without clearing
-them. API sending, provider commands and callback processing remain gated by
-publication state; already in-flight provider requests may finish.
-
-MCD `remove` retains saved integration settings while removing files and plugin
-registration. Explicit `purge` also deletes retained integration settings.
-Keep submission receipts when upgrading or temporarily removing the full sender:
-they protect against repeat delivery of previously accepted messages.
+Maintained by Alexander Zlobin / [Sales Snap](https://sales-snap.ru).

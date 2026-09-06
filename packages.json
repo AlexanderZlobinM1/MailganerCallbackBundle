@@ -1,0 +1,24 @@
+{
+  "callback": {
+    "BUNDLE": "MailganerCallbackBundle",
+    "EXTENSION": "MailganerCallbackExtension",
+    "TWIG": "MailganerCallback",
+    "SERVICE": "mailganercallbackbundle",
+    "LABEL": "mailganer_callback",
+    "TAB": "mailganercallback",
+    "DISPLAY": "Mailganer Callback",
+    "VERSION": "1.3.0",
+    "DESCRIPTION": "Mailganer (Samotpravil) callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap."
+  },
+  "api": {
+    "BUNDLE": "MailganerBundle",
+    "EXTENSION": "MailganerExtension",
+    "TWIG": "Mailganer",
+    "SERVICE": "mailganerbundle",
+    "LABEL": "mailganer",
+    "TAB": "mailganer",
+    "DISPLAY": "Mailganer",
+    "VERSION": "1.6.0",
+    "DESCRIPTION": "Mailganer (Samotpravil) API transport and callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap."
+  }
+}

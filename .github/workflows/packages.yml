@@ -1,0 +1,48 @@
+name: Build independent Mailganer packages
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {php: '8.2', mautic: '5.2.10'}
+          - {php: '8.2', mautic: '6.0.9'}
+          - {php: '8.4', mautic: '7.1.3'}
+          - {php: '8.4', mautic: '7.2.0'}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: imap, intl, zip, gd, pdo_mysql, pdo_sqlite, bcmath
+          tools: composer:v2
+          coverage: none
+      - run: python3 -m unittest discover -s build_tests
+      - run: python3 scripts/build.py --output /tmp/mailganer-packages
+      - name: Test each standalone package
+        env:
+          MAUTIC_VERSION: '${{ matrix.mautic }}'
+        run: |
+          for bundle in MailganerCallbackBundle MailganerBundle; do
+            cd /tmp/mailganer-packages/$bundle
+            composer config audit.block-insecure false
+            composer require --no-interaction --no-progress --with-all-dependencies "mautic/core-lib:$MAUTIC_VERSION"
+            vendor/bin/phpunit
+          done
+  publish:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/release-')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/build.py --output /tmp/mailganer-release
+      - name: Publish standalone ZIP assets
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        run: gh release create "$GITHUB_REF_NAME" /tmp/mailganer-release/*.zip /tmp/mailganer-release/SHA256SUMS --verify-tag --generate-notes
