@@ -59,6 +59,9 @@ perl -0777 -i -pe '
   s/return '\''Mailganer'\'';/return '\''Mailganer (API + Callback)'\'';/g;
 ' "$FULL_DIR/Integration/MailganerIntegration.php"
 
+# Only the full plugin exposes API sending controls.
+perl -0777 -i -pe 's/        \$builder->add\(/        \\MauticPlugin\\MailganerBundle\\Form\\SendingControls::append(\$builder, \$data, \$this->translator);\n\n        \$builder->add(/' "$FULL_DIR/Integration/MailganerIntegration.php"
+
 # Full plugin additionally supports custom API mailer scheme.
 perl -0777 -i -pe '
   s@if \(in_array\(\$scheme, \['\''smtp'\'', '\''smtps'\''\], true\)

@@ -53,4 +53,31 @@ final class ApiTest extends TestCase
         $this->expectException(ApiException::class);
         (new MailganerApi($client, 'key'))->request('GET', '/api/v2/authkey');
     }
+
+    public function testProviderThrottleAndRetryAfterAreExposedWithoutCredentials(): void
+    {
+        $client = new MockHttpClient(new MockResponse('{"status":"throttling","message":"slow down"}', ['http_code' => 429, 'response_headers' => ['retry-after: 2']]));
+        $api = new MailganerApi($client, 'key');
+        try {
+            $api->request('POST', '/api/v1/smtp_send', []);
+            self::fail();
+        } catch (ApiException $e) {
+            self::assertTrue($e->definitive);
+            self::assertTrue($e->throttled);
+            self::assertSame(2, $e->retryAfter);
+        }
+    }
+
+    public function testNonJsonThrottleStillActivatesCooldown(): void
+    {
+        $api = new MailganerApi(new MockHttpClient(new MockResponse('<html>rate limited</html>', ['http_code' => 429, 'response_headers' => ['retry-after: 3']])), 'key');
+        try {
+            $api->request('POST', '/api/v1/smtp_send');
+            self::fail();
+        } catch (ApiException $e) {
+            self::assertTrue($e->definitive);
+            self::assertTrue($e->throttled);
+            self::assertSame(3, $e->retryAfter);
+        }
+    }
 }

@@ -7,6 +7,8 @@ namespace MauticPlugin\MailganerBundle\Command;
 use Mautic\CoreBundle\Helper\CoreParametersHelper;
 use Mautic\PluginBundle\Helper\IntegrationHelper;
 use MauticPlugin\MailganerBundle\Api\MailganerApi;
+use MauticPlugin\MailganerBundle\Mailer\SendingControl;
+use MauticPlugin\MailganerBundle\Mailer\SendRateLimiter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,6 +22,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class ApiCommand extends Command
 {
     public const ACTIONS = [
+        'sending-status' => ['LOCAL', '', []],
+        'sending-control' => ['LOCAL', '', []],
         'account' => ['GET', '/api/v2/authkey', []],
         'domains' => ['GET', '/api/v2/blist/domains', []],
         'domain-verify' => ['POST', '/api/v2/blist/domains/verify', ['domain']],
@@ -43,7 +47,7 @@ final class ApiCommand extends Command
         'webhook-configure' => ['POST', '/api/v2/blist/update', ['id', 'webhook_url']],
     ];
 
-    public function __construct(private CoreParametersHelper $parameters, private IntegrationHelper $integrations, private HttpClientInterface $client, private TranslatorInterface $translator)
+    public function __construct(private CoreParametersHelper $parameters, private IntegrationHelper $integrations, private HttpClientInterface $client, private TranslatorInterface $translator, private SendingControl $sendingControl, private string $journalDirectory)
     {
         parent::__construct('mautic:mailganer:api');
     }
@@ -72,6 +76,21 @@ final class ApiCommand extends Command
         $key = $dsn->getOption('key') ?? $dsn->getPassword() ?? $dsn->getUser();
         if (!is_string($key) || '' === trim($key)) {
             throw new \RuntimeException($this->translator->trans('key', [], 'mailganer_api'));
+        }
+        if (in_array($action, ['sending-status', 'sending-control'], true)) {
+            $limits = $this->sendingControl->current();
+            if ('sending-control' === $action) {
+                $data = json_decode((string) $input->getOption('data'), true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($data) || array_diff(array_keys($data), ['rate', 'concurrency'])) {
+                    throw new \InvalidArgumentException($this->translator->trans('sending.fields', [], 'mailganer_api'));
+                }
+                $limits = $this->sendingControl->save(array_replace($limits, $data));
+            }
+            $status = (new SendRateLimiter($this->journalDirectory.'/'.hash('sha256', trim($key))))->status($limits);
+            $status['delivery_mode'] = $dsn->getOption('delivery_mode', 'parallel');
+            $output->writeln(json_encode($status, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+
+            return Command::SUCCESS;
         }
         $data = json_decode((string) $input->getOption('data'), true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($data)) {

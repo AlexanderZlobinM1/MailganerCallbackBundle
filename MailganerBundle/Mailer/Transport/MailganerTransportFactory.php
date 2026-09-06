@@ -7,6 +7,7 @@ namespace MauticPlugin\MailganerBundle\Mailer\Transport;
 use Mautic\PluginBundle\Helper\IntegrationHelper;
 use Mautic\PluginBundle\Integration\AbstractIntegration;
 use MauticPlugin\MailganerBundle\Integration\MailganerIntegration;
+use MauticPlugin\MailganerBundle\Mailer\SendingControl;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Mailer\Exception\IncompleteDsnException;
@@ -24,6 +25,7 @@ final class MailganerTransportFactory extends AbstractTransportFactory
         ?HttpClientInterface $client = null,
         ?LoggerInterface $logger = null,
         private string $journalDirectory = '',
+        private ?SendingControl $sendingControl = null,
     ) {
         parent::__construct($dispatcher, $client, $logger);
     }
@@ -41,6 +43,9 @@ final class MailganerTransportFactory extends AbstractTransportFactory
             throw new UnsupportedSchemeException($dsn, 'mailganer', $this->getSupportedSchemes());
         }
 
+        if (!in_array($dsn->getOption('delivery_mode', 'parallel'), ['parallel', 'package'], true)) {
+            throw new \Symfony\Component\Mailer\Exception\TransportException('Mailganer delivery_mode must be parallel or package.');
+        }
         $apiKey = $this->resolveApiKey($dsn);
         $host = 'default' === $dsn->getHost() ? null : $dsn->getHost();
 
@@ -57,7 +62,9 @@ final class MailganerTransportFactory extends AbstractTransportFactory
             $this->logger,
             (int) $dsn->getOption('batch_size', 100),
             '' !== $this->journalDirectory ? $this->journalDirectory : null,
-            $this->toBoolean($dsn->getOption('force_package'), false)
+            $this->toBoolean($dsn->getOption('force_package'), false),
+            $this->sendingControl ? $this->sendingControl->current(...) : null,
+            'package' === $dsn->getOption('delivery_mode', 'parallel')
         ))
             ->setHost($host)
             ->setPort($dsn->getPort());

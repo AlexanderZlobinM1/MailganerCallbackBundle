@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] - 2026-09-06
+
+- Send personal Mautic messages concurrently by default, retaining text, attachments and recipient-specific headers. JSON packages remain an explicit delivery mode with compatible-message fallback.
+- Add live UI/CLI speed and concurrency controls: blank adaptive mode, numeric manual ceiling, zero pause; share rate state and provider cooldown across installation workers.
+- Start adaptive sending at 10 emails/second and adjust on successful/throttled responses; never pretend this is a provider-reported quota.
+- Drain every started request after partial failure and persist individual acceptance receipts before retries.
+- Add English, Russian and Serbian settings and regression coverage across Mautic 5/6/7.
+
 ## [1.3.0] - 2026-09-06
 
 - Serialize callback DNC updates per contact, ignore repeated feedback and preserve unsubscribe state and original email attribution.

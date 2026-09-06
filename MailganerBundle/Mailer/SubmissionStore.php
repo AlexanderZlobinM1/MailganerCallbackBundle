@@ -67,6 +67,85 @@ final class SubmissionStore
         }
     }
 
+    /** Start a bounded wave, then drain every started request before surfacing any error. */
+    public function submitWave(array $jobs, callable $start, callable $finish): array
+    {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
+            throw new TransportException('Cannot create Mailganer receipt directory.');
+        }
+        // All workers acquire overlapping receipt locks in the same order.
+        ksort($jobs, SORT_STRING);
+        $active = $results = [];
+        $error = null;
+        foreach ($jobs as $id => $job) {
+            $path = $this->directory.'/'.hash('sha256', $id).'.json';
+            $lock = null;
+            $markedPending = false;
+            try {
+                $lock = @fopen($path.'.lock', 'c+');
+                if (false === $lock || !flock($lock, LOCK_EX)) {
+                    throw new TransportException('Cannot lock Mailganer receipt.');
+                }
+                @chmod($path.'.lock', 0600);
+                $record = is_file($path) ? json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR) : [];
+                if (!is_array($record) || (is_file($path) && !isset($record['state']))) {
+                    throw new TransportException('Invalid Mailganer receipt; sending stopped.');
+                }
+                if ('accepted' === ($record['state'] ?? null)) {
+                    $results[$id] = $record['result'];
+                    continue;
+                }
+                if ('pending' === ($record['state'] ?? null)) {
+                    throw new TransportException('Mailganer submission '.$id.' has an uncertain outcome; reconcile before retrying.');
+                }
+                $this->write($path, ['state' => 'pending', 'updated_at' => time()]);
+                $markedPending = true;
+                $response = $start($job);
+                $active[$id] = [$response, $lock, $path];
+                $lock = null; // held until its response is consumed and persisted
+            } catch (\Throwable $e) {
+                if ($markedPending && $e instanceof ApiException && $e->definitive) {
+                    try {
+                        $this->write($path, ['state' => 'rejected', 'updated_at' => time()]);
+                    } catch (\Throwable $storageError) {
+                        $e = $storageError;
+                    }
+                }
+                $error = $e;
+                break;
+            } finally {
+                if (is_resource($lock)) {
+                    flock($lock, LOCK_UN);
+                    fclose($lock);
+                }
+            }
+        }
+        foreach ($active as $id => [$response, $lock, $path]) {
+            try {
+                $result = $finish($response);
+                $this->write($path, ['state' => 'accepted', 'result' => $result, 'updated_at' => time()]);
+                $results[$id] = $result;
+            } catch (\Throwable $e) {
+                if ($e instanceof ApiException && $e->definitive) {
+                    try {
+                        $this->write($path, ['state' => 'rejected', 'updated_at' => time()]);
+                    } catch (\Throwable $storageError) {
+                        $e = $storageError;
+                    }
+                }
+                $error ??= $e;
+            } finally {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
+        }
+        if (null !== $error) {
+            throw $error;
+        }
+
+        return $results;
+    }
+
     private function write(string $path, array $record): void
     {
         // Never truncate the previous pending receipt after a remote acceptance.

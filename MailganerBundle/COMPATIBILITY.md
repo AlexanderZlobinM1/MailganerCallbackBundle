@@ -16,7 +16,7 @@ configured acceptance environment; a successful kernel test does not prove deliv
 ## Verified on 6 September 2026
 
 Mautic 7.2.0 and 7.1.3 with PHP 8.4.25; Mautic 6.0.9 and 5.2.10 with PHP 8.2.33.
-All 30 PHPUnit tests passed on each version. Fresh production kernel service/form checks
+All 40 PHPUnit tests passed on each version. Fresh production kernel service/form checks
 and real MariaDB callback tests passed on all four versions. Database tests verify
 email attribution, repeated-event deduplication and bounce-to-unsubscribe updates.
 Test doubles may bypass final core classes only in the unit-test bootstrap; native
@@ -34,3 +34,14 @@ Do not use production contacts for this test. See LINEAGE_AUDIT.md for inherited
 coverage and limits; the tests do not backfill old DNC records.
 
 Live single API delivery with a normal attachment and JSON-package delivery were verified with the owner-approved Bigart account and recipient. Package 2372943 reported one sent message and zero stopped/failed messages; the received MIME confirmed personalization and literal template preservation. This is not a bulk performance benchmark. JSON packages preserve eligible HTML; plaintext alternatives, attachments and personalized header differences use single API requests. Inline CID and CC/BCC remain explicit unsupported-message errors.
+
+The 1.4.0 speed regression suite additionally verifies partial-failure draining,
+accepted-recipient deduplication, uncertain starts, shared token accounting,
+adaptive growth/throttling/cooldown, manual priority, pause and personal payloads.
+Native database checks exercise save/reload, automatic mode and disabled-state
+gating. UI checks cover Mautic 5 and 7, English/Russian/Serbian labels and tooltips,
+empty/default values, saved numeric values and validation.
+
+A live four-request wave to the approved recipient was accepted in 0.339 seconds;
+all four provider statuses subsequently reported delivered. This checks live
+concurrent acceptance, not sustained account capacity.

@@ -10,6 +10,7 @@ use Mautic\EmailBundle\Mailer\Transport\TokenTransportInterface;
 use Mautic\EmailBundle\Mailer\Transport\TokenTransportTrait;
 use MauticPlugin\MailganerBundle\Api\ApiException;
 use MauticPlugin\MailganerBundle\Api\MailganerApi;
+use MauticPlugin\MailganerBundle\Mailer\SendRateLimiter;
 use MauticPlugin\MailganerBundle\Mailer\SubmissionStore;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -29,6 +30,7 @@ final class MailganerApiTransport extends AbstractTransport implements TokenTran
     private ?SubmissionStore $store;
     private string $host = 'api.samotpravil.ru';
     private array $lastSubmissions = [];
+    private ?SendRateLimiter $rateLimiter = null;
 
     public function __construct(
         #[\SensitiveParameter] private string $apiKey,
@@ -44,11 +46,16 @@ final class MailganerApiTransport extends AbstractTransport implements TokenTran
         private int $batchSize = 100,
         ?string $journalDirectory = null,
         private bool $forcePackage = false,
+        private ?\Closure $limitsProvider = null,
+        private bool $usePackages = true,
     ) {
         parent::__construct($dispatcher, $logger);
         $this->client ??= HttpClient::create();
         $this->api = new MailganerApi($this->client, $apiKey);
         $this->store = null !== $journalDirectory ? new SubmissionStore($journalDirectory.'/'.hash('sha256', $apiKey)) : null;
+        if (null !== $journalDirectory && null !== $limitsProvider) {
+            $this->rateLimiter = new SendRateLimiter($journalDirectory.'/'.hash('sha256', $apiKey));
+        }
         if ($batchSize < 1 || $batchSize > 1000) {
             throw new TransportException('Mailganer batch_size must be between 1 and 1000.');
         }
@@ -102,28 +109,61 @@ final class MailganerApiTransport extends AbstractTransport implements TokenTran
             unset($common['email_to'], $common['subject'], $common['message_text'], $common['params'], $common['x_track_id']);
             unset($common['headers']['X-Track-ID']);
             // JSON packages do not document text/plain or attachments; use the single API without losing them.
-            $canBatch = $row['batch'] && !isset($payload['attach_files']) && !isset($payload['message_text_plain']);
+            $canBatch = ($this->usePackages || $this->forcePackage) && $row['batch'] && !isset($payload['attach_files']) && !isset($payload['message_text_plain']);
             $groupKey = $canBatch ? hash('sha256', json_encode($common, JSON_THROW_ON_ERROR)) : $row['id'];
             $groups[$groupKey][] = $row;
         }
+        $singles = [];
         foreach ($groups as $group) {
             foreach (array_chunk($group, $this->batchSize) as $chunk) {
                 if (count($chunk) > 1 || ($this->forcePackage && $chunk[0]['batch'] && !isset($chunk[0]['payload']['attach_files']) && !isset($chunk[0]['payload']['message_text_plain']))) {
                     $this->sendPackage($chunk);
                 } else {
-                    $row = $chunk[0];
-                    $result = $this->submit($row['id'], function () use ($row): array {
-                        $result = $this->api->request('POST', '/api/v1/smtp_send', $row['payload']);
-                        if (empty($result['message_id']) || !is_scalar($result['message_id'])) {
-                            throw new ApiException('Mailganer accepted response lacks message_id; reconcile before retrying.', false);
-                        }
+                    $singles[] = $chunk[0];
+                }
+            }
+        }
+        if ($singles) {
+            $this->sendSingles($singles, $message, count($rows));
+        }
+    }
 
-                        return ['message_id' => (string) $result['message_id']];
-                    });
-                    $this->lastSubmissions[] = ['x_track_id' => $row['id']] + $result;
-                    if (1 === count($rows)) {
-                        $message->setMessageId($result['message_id']);
-                    }
+    private function sendSingles(array $rows, SentMessage $sent, int $total): void
+    {
+        $finish = function ($response): array {
+            try {
+                $result = $this->api->complete($response);
+            } catch (ApiException $e) {
+                if ($e->throttled) {
+                    $this->rateLimiter?->feedback(true, $e->retryAfter);
+                }
+                throw $e;
+            }
+            if (empty($result['message_id']) || !is_scalar($result['message_id'])) {
+                throw new ApiException('Mailganer accepted response lacks message_id; reconcile before retrying.', false);
+            }
+            $this->rateLimiter?->feedback(false);
+
+            return ['message_id' => (string) $result['message_id']];
+        };
+        while ($rows) {
+            $count = $this->rateLimiter ? $this->rateLimiter->acquire(count($rows), $this->limitsProvider) : 1;
+            $wave = array_splice($rows, 0, $count);
+            $jobs = [];
+            foreach ($wave as $row) {
+                $jobs[$row['id']] = $row['payload'];
+            }
+            $start = fn (array $payload) => $this->api->start('POST', '/api/v1/smtp_send', $payload);
+            if ($this->store) {
+                $results = $this->store->submitWave($jobs, $start, $finish);
+            } else {
+                $id = array_key_first($jobs);
+                $results = [$id => $finish($start($jobs[$id]))];
+            }
+            foreach ($results as $id => $result) {
+                $this->lastSubmissions[] = ['x_track_id' => $id] + $result;
+                if (1 === $total) {
+                    $sent->setMessageId($result['message_id']);
                 }
             }
         }
@@ -131,6 +171,14 @@ final class MailganerApiTransport extends AbstractTransport implements TokenTran
 
     private function sendPackage(array $rows): void
     {
+        // Reserve recipient admission before the package is submitted. Provider delivery
+        // of an accepted package is asynchronous and cannot be paced by this worker.
+        if ($this->rateLimiter) {
+            $remaining = count($rows);
+            while ($remaining > 0) {
+                $remaining -= $this->rateLimiter->acquire($remaining, $this->limitsProvider);
+            }
+        }
         $first = $rows[0];
         $p = $first['payload'];
         $id = 'mtc-e'.$first['emailId'].'-p'.substr(hash('sha256', implode('|', array_column($rows, 'id'))), 0, 40);
@@ -150,11 +198,20 @@ final class MailganerApiTransport extends AbstractTransport implements TokenTran
             $package['users'][] = ['emailto' => $row['payload']['email_to'], 'mtc_subject' => $row['subject'], 'mtc_html' => $row['html']];
         }
         $result = $this->submit($id, function () use ($package): array {
-            $result = $this->api->request('POST', '/api/v1/add_json_package', $package);
+            try {
+                $result = $this->api->request('POST', '/api/v1/add_json_package', $package);
+            } catch (ApiException $e) {
+                if ($e->throttled) {
+                    $this->rateLimiter?->feedback(true, $e->retryAfter);
+                }
+                throw $e;
+            }
             $value = $result['message'] ?? null;
             if (!is_array($value) || empty($value['pack_id']) || !in_array($value['status'] ?? '', ['S004', 'S005', 'S009', 'S011', 'S018', 'S020', 'S021'], true)) {
                 throw new ApiException('Mailganer did not confirm package acceptance; reconcile its external_id before retrying.', false);
             }
+
+            $this->rateLimiter?->feedback(false);
 
             return ['pack_id' => (string) $value['pack_id'], 'status' => $value['status']];
         }, function () use ($id): ?array {

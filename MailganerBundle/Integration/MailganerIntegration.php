@@ -49,6 +49,8 @@ class MailganerIntegration extends AbstractIntegration
             return;
         }
 
+        \MauticPlugin\MailganerBundle\Form\SendingControls::append($builder, $data, $this->translator);
+
         $builder->add('mailganer_handle_failed', YesNoButtonGroupType::class, [
             'label' => 'mailganer.config.handle_failed',
             'data'  => $this->toBool($data['mailganer_handle_failed'] ?? true),
