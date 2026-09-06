@@ -4,7 +4,7 @@ Mailganer (Samotpravil) Concurrent API delivery, adaptive sending speed, persona
 
 ## Install and enable
 
-Download the **MailganerBundle** release asset and extract its `MailganerBundle` directory into Mautic's `plugins/` (or `docroot/plugins/` for Composer installations). The repository root is the separate SMTP-only Callback package; it is not the full plugin's installation directory.
+Download the **MailganerBundle** release asset and extract its `MailganerBundle` directory into Mautic's `plugins/` (or `docroot/plugins/` for Composer installations). The repository contains shared sources and variant additions; its source archive is not directly installable. This release asset is standalone and does not require the Callback plugin.
 
 Run `php bin/console mautic:plugins:reload` and `php bin/console cache:clear` as the Mautic PHP user. Enable **Mailganer (API + Callback)** in Plugins. When replacing Mailganer Callback, transfer its three handling switches and logging preference, then disable the Callback integration to avoid duplicate listeners with SMTP.
 

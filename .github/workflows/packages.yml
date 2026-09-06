@@ -30,6 +30,13 @@ jobs:
           for bundle in MailganerCallbackBundle MailganerBundle; do
             cd /tmp/mailganer-packages/$bundle
             composer config audit.block-insecure false
+            if [[ "$MAUTIC_VERSION" == 5.* ]]; then
+              # Mautic 5's official project requires these fork repositories.
+              composer config repositories.fos git https://github.com/mautic/FOSOAuthServerBundle.git
+              composer config repositories.sp git https://github.com/mautic/SpBundle.git
+              composer config repositories.bridge git https://github.com/mautic/SymfonyBridgeBundle.git
+              composer config repositories.gaufrette '{"type":"git","url":"https://github.com/mautic/gaufrette-extras.git","only":["gaufrette/extras"]}'
+            fi
             composer require --no-interaction --no-progress --with-all-dependencies "mautic/core-lib:$MAUTIC_VERSION"
             vendor/bin/phpunit
           done

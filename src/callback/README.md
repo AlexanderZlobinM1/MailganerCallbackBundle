@@ -70,24 +70,17 @@ You can also enable incoming webhook logging (`Log incoming webhook payload`) fo
 
 ## Two-plugin layout
 
-This repository contains two independent plugins:
-
-- `MailganerCallbackBundle` (lite, callback only) - root directory
-- `MailganerBundle` (full, API sending + callback) - `MailganerBundle/`
-
-Shared callback files are synchronized from lite to full via:
-
-```bash
-./scripts/sync-lite-to-full.sh
-```
-
-CI workflow checks that sync is not missed (`.github/workflows/sync-callback.yml`).
+The repository has one shared source directory and two variant directories.
+CI builds independent `MailganerCallbackBundle` and `MailganerBundle` release
+ZIPs from that tree. Download the named release asset; the GitHub source
+archive is not directly installable. No second plugin or shared library is
+needed at runtime. See the repository README for the build procedure.
 
 ## Release 1.1.3 attribution
 
 Outgoing Mautic emails carry an explicit email ID and structured tracking marker. Callback attribution accepts those markers; arbitrary numeric `message_id` / `x_track_id` values are not Mautic IDs. Database failures return HTTP 503. See `LINEAGE_AUDIT.md` for the SES/SendGrid/Mailganer audit.
 
-For API delivery and packages, install the separate **MailganerBundle** release asset and follow [its README](MailganerBundle/README.md). Disable this Callback integration when switching to the full integration.
+For API delivery and packages, install the separate **MailganerBundle** release asset and follow its included README. Install only one variant at a time.
 
 ## Shared settings and removal
 
