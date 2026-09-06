@@ -12,7 +12,7 @@ use Mautic\PluginBundle\Entity\Integration as PluginIntegrationEntity;
 use Mautic\PluginBundle\Helper\IntegrationHelper;
 use Mautic\PluginBundle\Integration\AbstractIntegration;
 use MauticPlugin\MailganerCallbackBundle\EventSubscriber\CallbackSubscriber;
-use MauticPlugin\MailganerCallbackBundle\Integration\MailganerCallbackIntegration;
+use MauticPlugin\MailganerCallbackBundle\Integration\MailganerIntegration;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -105,7 +105,7 @@ class CallbackSubscriberTest extends TestCase
             ->method('addFailureByAddress');
 
         $subscriber = $this->createSubscriber($transportCallback, [
-            'mailganer_callback_handle_failed' => false,
+            'mailganer_handle_failed' => false,
         ]);
 
         $eventPayload = [
@@ -173,7 +173,7 @@ class CallbackSubscriberTest extends TestCase
 
         $subscriber = $this->createSubscriber($transportCallback, [
             'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
-            'mailganer_callback_log_payload' => true,
+            'mailganer_log_payload' => true,
         ], $logger);
 
         $request = Request::create('/mailer/callback', 'POST', [], [], [], [], json_encode([
@@ -211,7 +211,7 @@ class CallbackSubscriberTest extends TestCase
 
         $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class), [
             'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
-            'mailganer_callback_log_payload' => true,
+            'mailganer_log_payload' => true,
         ], $logger);
 
         $request = Request::create('/mailer/callback', 'POST', [], [], [], [], '{bad');
@@ -281,7 +281,7 @@ class CallbackSubscriberTest extends TestCase
         $integrationHelper = $this->createMock(IntegrationHelper::class);
         $integrationHelper
             ->method('getIntegrationObject')
-            ->with(MailganerCallbackIntegration::INTEGRATION_NAME)
+            ->with(MailganerIntegration::INTEGRATION_NAME)
             ->willReturn($integration);
 
         $logger ??= $this->createMock(LoggerInterface::class);

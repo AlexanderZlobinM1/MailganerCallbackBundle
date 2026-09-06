@@ -20,6 +20,9 @@ jobs:
           git diff --exit-code -- \
             MailganerBundle/EventSubscriber/CallbackSubscriber.php \
             MailganerBundle/Model/DncFeedback.php \
+            MailganerBundle/Model/SharedSettings.php \
+            MailganerBundle/EventSubscriber/SettingsLifecycleSubscriber.php \
+            MailganerBundle/Resources/views/Integration/settings-state.js.twig \
             MailganerBundle/Tests/Functional/CallbackSubscriberTest.php \
             MailganerBundle/Integration/MailganerIntegration.php \
             MailganerBundle/Translations/en_US/messages.ini \

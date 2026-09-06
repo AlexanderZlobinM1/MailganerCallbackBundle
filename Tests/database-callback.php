@@ -78,7 +78,7 @@ try {
     }
     $helper = $c->get('callback_test.integration');
     $name = match ($bundle) {
-        'MailganerBundle' => 'Mailganer','MailganerCallbackBundle' => 'MailganerCallback',default => 'SendgridCallback',
+        'MailganerBundle' => 'Mailganer','MailganerCallbackBundle' => 'Mailganer',default => 'SendgridCallback',
     };
     $integration = $helper->getIntegrationObject($name);
     $settings = new Mautic\PluginBundle\Entity\Integration();

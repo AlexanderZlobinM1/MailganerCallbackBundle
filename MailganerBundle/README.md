@@ -51,6 +51,8 @@ Open **Plugins → Mailganer (API + Callback)**:
 - **0:** pause new requests. Already submitted requests finish and are recorded. Mautic receives a transport error for remaining work; resume by saving an empty field or a positive number and retrying through the normal Mautic flow.
 - **Concurrent API requests:** 1–32 per worker, default 4. More concurrency overlaps network latency; it does not bypass the shared speed limit.
 
+When the general integration switch is off, dependent settings are dimmed and cannot be edited; saving the disabled integration preserves their values. Enable and save the integration to resume sending and callbacks.
+
 Changes are read directly from the database between request groups and while waiting for tokens; no worker restart is needed. Disabling the integration also stops new request groups. The shared token bucket in the persistent receipt directory coordinates all workers of this installation/account and permits bursts of up to one second's allowance. Independent Mautic installations have independent limits.
 
 The SMTP API does **not** return an account emails/second quota in its documented/live account responses. Adaptive mode learns from request responses; its ceiling is neither a provider-reported quota nor measured delivery throughput. It cannot detect a downstream mailbox backlog when the API keeps accepting messages.
@@ -125,3 +127,22 @@ Database/storage exceptions produce HTTP 503 rather than acknowledging lost feed
 See `COMPATIBILITY.md` and `LINEAGE_AUDIT.md`. Tests cover native kernels, callback database attribution, batches, personalization, retries, storage errors, malformed responses, credentials and attachments across supported Mautic versions. Live single/package delivery was tested using the owner's approved account and recipient; it is not a throughput benchmark or certification of every provider/account feature.
 
 Provider references: [SMTP API documentation](https://documentation.samotpravil.ru/), [separate marketing-account authentication](https://mailganer.com/documentation/api).
+
+## Shared settings and removal
+
+Install only one Mailganer variant at a time. Both use integration `Mailganer`
+and common fields `mailganer_handle_failed`, `mailganer_handle_fbl`,
+`mailganer_handle_unsubscribe` and `mailganer_log_payload`. The plugin's native
+lifecycle adopts legacy `MailganerCallback` settings and preserves existing
+canonical values, including an explicit disabled state. Saving the Callback
+form retains the full variant's rate and concurrency settings for a later switch.
+MCC does not migrate or interpret these values.
+
+A disabled general switch dims and locks the dependent fields without clearing
+them. API sending, provider commands and callback processing remain gated by
+publication state; already in-flight provider requests may finish.
+
+MCD `remove` retains saved integration settings while removing files and plugin
+registration. Explicit `purge` also deletes retained integration settings.
+Keep submission receipts when upgrading or temporarily removing the full sender:
+they protect against repeat delivery of previously accepted messages.

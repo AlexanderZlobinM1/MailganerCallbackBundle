@@ -11,7 +11,7 @@ use Mautic\EmailBundle\Model\TransportCallback;
 use Mautic\LeadBundle\Entity\DoNotContact;
 use Mautic\PluginBundle\Helper\IntegrationHelper;
 use Mautic\PluginBundle\Integration\AbstractIntegration;
-use MauticPlugin\MailganerCallbackBundle\Integration\MailganerCallbackIntegration;
+use MauticPlugin\MailganerCallbackBundle\Integration\MailganerIntegration;
 use MauticPlugin\MailganerCallbackBundle\MailganerCallbackBundle;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -65,7 +65,7 @@ class CallbackSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $rawBody = (string) $request->getContent();
-        $logInbound = $this->toBoolean($this->getIntegrationKey('mailganer_callback_log_payload'));
+        $logInbound = $this->toBoolean($this->getIntegrationKey('mailganer_log_payload'));
 
         if ($logInbound) {
             $context = [
@@ -280,9 +280,9 @@ class CallbackSubscriber implements EventSubscriberInterface
     private function isStatusEnabled(string $status): bool
     {
         $parameterMap = [
-            'failed' => 'mailganer_callback_handle_failed',
-            'fbl' => 'mailganer_callback_handle_fbl',
-            'unsubscribe' => 'mailganer_callback_handle_unsubscribe',
+            'failed' => 'mailganer_handle_failed',
+            'fbl' => 'mailganer_handle_fbl',
+            'unsubscribe' => 'mailganer_handle_unsubscribe',
         ];
 
         if (!isset($parameterMap[$status])) {
@@ -410,7 +410,7 @@ class CallbackSubscriber implements EventSubscriberInterface
 
     private function getIntegrationObject(): ?AbstractIntegration
     {
-        $integration = $this->integrationHelper->getIntegrationObject(MailganerCallbackIntegration::INTEGRATION_NAME);
+        $integration = $this->integrationHelper->getIntegrationObject(MailganerIntegration::INTEGRATION_NAME);
 
         return $integration instanceof AbstractIntegration ? $integration : null;
     }

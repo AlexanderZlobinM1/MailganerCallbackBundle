@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Mautic\CoreBundle\Helper\AppVersion;
-use MauticPlugin\MailganerCallbackBundle\Integration\MailganerCallbackIntegration;
+use MauticPlugin\MailganerCallbackBundle\Integration\MailganerIntegration;
 
 $mauticVersion = (int) (new AppVersion())->getVersion();
 
@@ -57,11 +57,11 @@ return [
     'name' => 'Mailganer Callback',
     'description' => 'Mailganer (Samotpravil) callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap.',
     'author' => 'Alexander Zlobin',
-    'version' => '1.1.3',
+    'version' => '1.2.0',
     'services' => [
         'integrations' => [
-            'mautic.integration.mailganercallback' => [
-                'class' => MailganerCallbackIntegration::class,
+            'mautic.integration.mailganer' => [
+                'class' => MailganerIntegration::class,
                 'arguments' => $defaultIntegrationArguments,
             ],
         ],

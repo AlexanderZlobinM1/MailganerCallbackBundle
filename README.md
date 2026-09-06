@@ -88,3 +88,22 @@ CI workflow checks that sync is not missed (`.github/workflows/sync-callback.yml
 Outgoing Mautic emails carry an explicit email ID and structured tracking marker. Callback attribution accepts those markers; arbitrary numeric `message_id` / `x_track_id` values are not Mautic IDs. Database failures return HTTP 503. See `LINEAGE_AUDIT.md` for the SES/SendGrid/Mailganer audit.
 
 For API delivery and packages, install the separate **MailganerBundle** release asset and follow [its README](MailganerBundle/README.md). Disable this Callback integration when switching to the full integration.
+
+## Shared settings and removal
+
+Install only one Mailganer variant at a time. Both use integration `Mailganer`
+and common fields `mailganer_handle_failed`, `mailganer_handle_fbl`,
+`mailganer_handle_unsubscribe` and `mailganer_log_payload`. The plugin's native
+lifecycle adopts legacy `MailganerCallback` settings and preserves existing
+canonical values, including an explicit disabled state. Saving the Callback
+form retains the full variant's rate and concurrency settings for a later switch.
+MCC does not migrate or interpret these values.
+
+A disabled general switch dims and locks the dependent fields without clearing
+them. API sending, provider commands and callback processing remain gated by
+publication state; already in-flight provider requests may finish.
+
+MCD `remove` retains saved integration settings while removing files and plugin
+registration. Explicit `purge` also deletes retained integration settings.
+Keep submission receipts when upgrading or temporarily removing the full sender:
+they protect against repeat delivery of previously accepted messages.

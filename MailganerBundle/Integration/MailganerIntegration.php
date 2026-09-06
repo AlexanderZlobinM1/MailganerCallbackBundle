@@ -5,11 +5,24 @@ declare(strict_types=1);
 namespace MauticPlugin\MailganerBundle\Integration;
 
 use Mautic\CoreBundle\Form\Type\YesNoButtonGroupType;
+use Mautic\PluginBundle\Entity\Integration;
 use Mautic\PluginBundle\Integration\AbstractIntegration;
 
 class MailganerIntegration extends AbstractIntegration
 {
     public const INTEGRATION_NAME = 'Mailganer';
+
+    public function encryptAndSetApiKeys(array $keys, Integration $entity): void
+    {
+        // The callback form edits only common fields; retain full-provider options.
+        foreach ($keys as &$value) {
+            if (is_bool($value)) {
+                $value = $value ? '1' : '0';
+            }
+        }
+        unset($value);
+        parent::encryptAndSetApiKeys(array_replace($this->decryptApiKeys($entity->getApiKeys() ?? []), $keys), $entity);
+    }
 
     public function getName(): string
     {
@@ -40,7 +53,6 @@ class MailganerIntegration extends AbstractIntegration
     }
 
     /**
-     * @param mixed $builder
      * @param array<string, mixed> $data
      */
     public function appendToForm(&$builder, $data, $formArea): void
@@ -53,31 +65,31 @@ class MailganerIntegration extends AbstractIntegration
 
         $builder->add('mailganer_handle_failed', YesNoButtonGroupType::class, [
             'label' => 'mailganer.config.handle_failed',
-            'data'  => $this->toBool($data['mailganer_handle_failed'] ?? true),
+            'data' => $this->toBool($data['mailganer_handle_failed'] ?? true),
             'row_attr' => [
                 'style' => 'margin-top: 30px;',
             ],
-            'attr'  => [
+            'attr' => [
                 'tooltip' => 'mailganer.config.handle_failed.tooltip',
             ],
         ]);
 
         $builder->add('mailganer_handle_fbl', YesNoButtonGroupType::class, [
             'label' => 'mailganer.config.handle_fbl',
-            'data'  => $this->toBool($data['mailganer_handle_fbl'] ?? true),
-            'attr'  => ['tooltip' => 'mailganer.config.handle_fbl.tooltip'],
+            'data' => $this->toBool($data['mailganer_handle_fbl'] ?? true),
+            'attr' => ['tooltip' => 'mailganer.config.handle_fbl.tooltip'],
         ]);
 
         $builder->add('mailganer_handle_unsubscribe', YesNoButtonGroupType::class, [
             'label' => 'mailganer.config.handle_unsubscribe',
-            'data'  => $this->toBool($data['mailganer_handle_unsubscribe'] ?? true),
-            'attr'  => ['tooltip' => 'mailganer.config.handle_unsubscribe.tooltip'],
+            'data' => $this->toBool($data['mailganer_handle_unsubscribe'] ?? true),
+            'attr' => ['tooltip' => 'mailganer.config.handle_unsubscribe.tooltip'],
         ]);
 
         $builder->add('mailganer_log_payload', YesNoButtonGroupType::class, [
             'label' => 'mailganer.config.log_payload',
-            'data'  => $this->toBool($data['mailganer_log_payload'] ?? false),
-            'attr'  => ['tooltip' => 'mailganer.config.log_payload.tooltip'],
+            'data' => $this->toBool($data['mailganer_log_payload'] ?? false),
+            'attr' => ['tooltip' => 'mailganer.config.log_payload.tooltip'],
         ]);
     }
 
@@ -88,8 +100,8 @@ class MailganerIntegration extends AbstractIntegration
     {
         if ('custom' === $section) {
             return [
-                'custom'     => true,
-                'template'   => '@Mailganer/Integration/footer.html.twig',
+                'custom' => true,
+                'template' => '@Mailganer/Integration/footer.html.twig',
                 'parameters' => [],
             ];
         }

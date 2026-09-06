@@ -48,6 +48,15 @@ try {
             throw new RuntimeException('Saved values differ: '.json_encode($actual));
         }echo json_encode($actual).PHP_EOL;
     }
+    $requests = 0;
+    $client = new Symfony\Component\HttpClient\MockHttpClient(static function () use (&$requests) {
+        ++$requests;
+        throw new RuntimeException('Disabled transport attempted an API call');
+    });
+    $transport = new MauticPlugin\MailganerBundle\Mailer\Transport\MailganerApiTransport(
+        'fixture', client: $client, journalDirectory: getenv('MG_CACHE').'/receipts',
+        limitsProvider: $control->current(...), usePackages: false
+    );
     $entity->setIsPublished(false);
     $em->persist($entity);
     $em->flush();
@@ -55,6 +64,17 @@ try {
         $control->current();
         throw new LogicException('Disabled gate failed');
     } catch (Symfony\Component\Mailer\Exception\TransportException $e) {
+    }
+    try {
+        $transport->send((new Symfony\Component\Mime\Email())->from('sender@example.invalid')->to('recipient@example.invalid')->subject('Disabled fixture')->text('No API request allowed'));
+        throw new LogicException('Already-created transport ignored disabled state');
+    } catch (Symfony\Component\Mailer\Exception\TransportException $e) {
+        if (!str_contains($e->getMessage(), 'disabled')) {
+            throw $e;
+        }
+    }
+    if ($requests !== 0) {
+        throw new LogicException('Disabled transport made an API request');
     }
     echo 'PASS controls live database Mautic '.$k->getVersion().PHP_EOL;
 } finally {

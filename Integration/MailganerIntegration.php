@@ -5,11 +5,24 @@ declare(strict_types=1);
 namespace MauticPlugin\MailganerCallbackBundle\Integration;
 
 use Mautic\CoreBundle\Form\Type\YesNoButtonGroupType;
+use Mautic\PluginBundle\Entity\Integration;
 use Mautic\PluginBundle\Integration\AbstractIntegration;
 
-class MailganerCallbackIntegration extends AbstractIntegration
+class MailganerIntegration extends AbstractIntegration
 {
-    public const INTEGRATION_NAME = 'MailganerCallback';
+    public const INTEGRATION_NAME = 'Mailganer';
+
+    public function encryptAndSetApiKeys(array $keys, Integration $entity): void
+    {
+        // The callback form edits only common fields; retain full-provider options.
+        foreach ($keys as &$value) {
+            if (is_bool($value)) {
+                $value = $value ? '1' : '0';
+            }
+        }
+        unset($value);
+        parent::encryptAndSetApiKeys(array_replace($this->decryptApiKeys($entity->getApiKeys() ?? []), $keys), $entity);
+    }
 
     public function getName(): string
     {
@@ -40,7 +53,6 @@ class MailganerCallbackIntegration extends AbstractIntegration
     }
 
     /**
-     * @param mixed $builder
      * @param array<string, mixed> $data
      */
     public function appendToForm(&$builder, $data, $formArea): void
@@ -49,33 +61,33 @@ class MailganerCallbackIntegration extends AbstractIntegration
             return;
         }
 
-        $builder->add('mailganer_callback_handle_failed', YesNoButtonGroupType::class, [
+        $builder->add('mailganer_handle_failed', YesNoButtonGroupType::class, [
             'label' => 'mailganer_callback.config.handle_failed',
-            'data'  => $this->toBool($data['mailganer_callback_handle_failed'] ?? true),
+            'data' => $this->toBool($data['mailganer_handle_failed'] ?? true),
             'row_attr' => [
                 'style' => 'margin-top: 30px;',
             ],
-            'attr'  => [
+            'attr' => [
                 'tooltip' => 'mailganer_callback.config.handle_failed.tooltip',
             ],
         ]);
 
-        $builder->add('mailganer_callback_handle_fbl', YesNoButtonGroupType::class, [
+        $builder->add('mailganer_handle_fbl', YesNoButtonGroupType::class, [
             'label' => 'mailganer_callback.config.handle_fbl',
-            'data'  => $this->toBool($data['mailganer_callback_handle_fbl'] ?? true),
-            'attr'  => ['tooltip' => 'mailganer_callback.config.handle_fbl.tooltip'],
+            'data' => $this->toBool($data['mailganer_handle_fbl'] ?? true),
+            'attr' => ['tooltip' => 'mailganer_callback.config.handle_fbl.tooltip'],
         ]);
 
-        $builder->add('mailganer_callback_handle_unsubscribe', YesNoButtonGroupType::class, [
+        $builder->add('mailganer_handle_unsubscribe', YesNoButtonGroupType::class, [
             'label' => 'mailganer_callback.config.handle_unsubscribe',
-            'data'  => $this->toBool($data['mailganer_callback_handle_unsubscribe'] ?? true),
-            'attr'  => ['tooltip' => 'mailganer_callback.config.handle_unsubscribe.tooltip'],
+            'data' => $this->toBool($data['mailganer_handle_unsubscribe'] ?? true),
+            'attr' => ['tooltip' => 'mailganer_callback.config.handle_unsubscribe.tooltip'],
         ]);
 
-        $builder->add('mailganer_callback_log_payload', YesNoButtonGroupType::class, [
+        $builder->add('mailganer_log_payload', YesNoButtonGroupType::class, [
             'label' => 'mailganer_callback.config.log_payload',
-            'data'  => $this->toBool($data['mailganer_callback_log_payload'] ?? false),
-            'attr'  => ['tooltip' => 'mailganer_callback.config.log_payload.tooltip'],
+            'data' => $this->toBool($data['mailganer_log_payload'] ?? false),
+            'attr' => ['tooltip' => 'mailganer_callback.config.log_payload.tooltip'],
         ]);
     }
 
@@ -86,8 +98,8 @@ class MailganerCallbackIntegration extends AbstractIntegration
     {
         if ('custom' === $section) {
             return [
-                'custom'     => true,
-                'template'   => '@MailganerCallback/Integration/footer.html.twig',
+                'custom' => true,
+                'template' => '@MailganerCallback/Integration/footer.html.twig',
                 'parameters' => [],
             ];
         }

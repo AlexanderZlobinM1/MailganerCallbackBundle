@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2026-09-06
+
+- Share the Mailganer integration identity and common setting fields between API and Callback variants. Native installation and migration adopt legacy callback settings without changing explicit publication state.
+- Retain API sending controls when the callback-only form is saved, and preserve false boolean values during encryption.
+- Dim and lock dependent settings while the general switch is off; retain their submitted values. Verify an already-created sender stops before any new API request after disabling.
+
 ## [1.4.0] - 2026-09-06
 
 - Send personal Mautic messages concurrently by default, retaining text, attachments and recipient-specific headers. JSON packages remain an explicit delivery mode with compatible-message fallback.
