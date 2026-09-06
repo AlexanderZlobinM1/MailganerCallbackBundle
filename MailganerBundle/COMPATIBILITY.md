@@ -15,4 +15,22 @@ configured acceptance environment; a successful kernel test does not prove deliv
 
 ## Verified on 6 September 2026
 
-Fresh-kernel service instantiation and form construction/resolution passed on `7.2.0`, `7.1.3`, `6.0.9`, `5.2.10`. Mautic 5/6 used PHP 8.2.33; Mautic 7 used PHP 8.4.25. External delivery and OAuth/CAPTCHA provider exchanges were not exercised.
+Mautic 7.2.0 and 7.1.3 with PHP 8.4.25; Mautic 6.0.9 and 5.2.10 with PHP 8.2.33.
+All 30 PHPUnit tests passed on each version. Fresh production kernel service/form checks
+and real MariaDB callback tests passed on all four versions. Database tests verify
+email attribution, repeated-event deduplication and bounce-to-unsubscribe updates.
+Test doubles may bypass final core classes only in the unit-test bootstrap; native
+kernel and database tests never bypass them.
+
+Run the database check on an isolated installed Mautic test environment with the
+plugin directory installed:
+
+```sh
+MAUTIC_ROOT=/path/to/mautic php Tests/database-callback.php
+```
+
+It creates uniquely named contact/email fixtures and removes them in a finally block.
+Do not use production contacts for this test. See LINEAGE_AUDIT.md for inherited-risk
+coverage and limits; the tests do not backfill old DNC records.
+
+Live single API delivery with a normal attachment and JSON-package delivery were verified with the owner-approved Bigart account and recipient. Package 2372943 reported one sent message and zero stopped/failed messages; the received MIME confirmed personalization and literal template preservation. This is not a bulk performance benchmark. JSON packages preserve eligible HTML; plaintext alternatives, attachments and personalized header differences use single API requests. Inline CID and CC/BCC remain explicit unsupported-message errors.

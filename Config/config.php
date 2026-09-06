@@ -54,17 +54,17 @@ switch (true) {
 }
 
 return [
-    'name'        => 'Mailganer Callback',
+    'name' => 'Mailganer Callback',
     'description' => 'Mailganer (Samotpravil) callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap.',
-    'author'      => 'Alexander Zlobin',
-    'version'     => '1.1.2',
-    'services'    => [
+    'author' => 'Alexander Zlobin',
+    'version' => '1.1.3',
+    'services' => [
         'integrations' => [
             'mautic.integration.mailganercallback' => [
-                'class'     => MailganerCallbackIntegration::class,
+                'class' => MailganerCallbackIntegration::class,
                 'arguments' => $defaultIntegrationArguments,
             ],
         ],
     ],
-    'parameters'  => [],
+    'parameters' => [],
 ];

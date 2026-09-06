@@ -28,6 +28,7 @@ class CallbackSubscriber implements EventSubscriberInterface
         private CoreParametersHelper $coreParametersHelper,
         private IntegrationHelper $integrationHelper,
         private LoggerInterface $logger,
+        private ?\MauticPlugin\MailganerCallbackBundle\Model\DncFeedback $feedback = null,
     ) {
     }
 
@@ -38,7 +39,22 @@ class CallbackSubscriber implements EventSubscriberInterface
     {
         return [
             EmailEvents::ON_TRANSPORT_WEBHOOK => 'processCallbackRequest',
+            EmailEvents::EMAIL_ON_SEND => 'prepareAttribution',
         ];
+    }
+
+    public function prepareAttribution(\Mautic\EmailBundle\Event\EmailSendEvent $event): void
+    {
+        if (!$this->isPluginEnabled() || !$this->isSupportedMailerTransport()) {
+            return;
+        }
+        $id = $event->getEmail()?->getId();
+        if (null === $this->positiveId($id)) {
+            return;
+        }
+        $event->addTextHeader('X-EMAIL-ID', (string) $id);
+        $hash = $event->getIdHash();
+        $event->addTextHeader('X-Track-ID', 'mtc-e'.$id.'-h'.hash('sha256', (string) ($hash ?: bin2hex(random_bytes(16)))));
     }
 
     public function processCallbackRequest(TransportWebhookEvent $event): void
@@ -53,12 +69,12 @@ class CallbackSubscriber implements EventSubscriberInterface
 
         if ($logInbound) {
             $context = [
-                'ip'           => $request->getClientIp(),
-                'method'       => $request->getMethod(),
-                'uri'          => $request->getRequestUri(),
-                'user_agent'   => $request->headers->get('User-Agent'),
-                'headers'      => $request->headers->all(),
-                'raw_body'     => substr($rawBody, 0, self::MAX_LOGGED_BODY_LENGTH),
+                'ip' => $request->getClientIp(),
+                'method' => $request->getMethod(),
+                'uri' => $request->getRequestUri(),
+                'user_agent' => $request->headers->get('User-Agent'),
+                'content_type' => $request->headers->get('Content-Type'),
+                'raw_body' => substr($rawBody, 0, self::MAX_LOGGED_BODY_LENGTH),
                 'body_trimmed' => strlen($rawBody) > self::MAX_LOGGED_BODY_LENGTH,
             ];
             $this->logger->info('Mailganer callback received', $context);
@@ -95,9 +111,9 @@ class CallbackSubscriber implements EventSubscriberInterface
 
             if ($logInbound) {
                 $context = [
-                    'processed'       => $processed,
-                    'root_keys'       => array_keys($payload),
-                    'messages_count'  => is_array($payload['messages'] ?? null) ? count($payload['messages']) : 0,
+                    'processed' => $processed,
+                    'root_keys' => array_keys($payload),
+                    'messages_count' => is_array($payload['messages'] ?? null) ? count($payload['messages']) : 0,
                     'xml_messages_count' => is_array($payload['xml_messages'] ?? null) ? count($payload['xml_messages']) : 0,
                 ];
                 $this->logger->info('Mailganer callback processed summary', $context);
@@ -106,7 +122,7 @@ class CallbackSubscriber implements EventSubscriberInterface
             $event->setResponse(new Response(sprintf('Mailganer Callback processed (%d)', $processed)));
         } catch (\Throwable $exception) {
             $this->logger->error('Failed to process Mailganer payload: '.$exception->getMessage());
-            $event->setResponse(new Response('Bad Request', Response::HTTP_BAD_REQUEST));
+            $event->setResponse(new Response('Bad Request', Response::HTTP_SERVICE_UNAVAILABLE));
         }
     }
 
@@ -121,7 +137,7 @@ class CallbackSubscriber implements EventSubscriberInterface
         try {
             $dsn = Dsn::fromString($dsnString);
             $scheme = strtolower($dsn->getScheme());
-            $host   = strtolower((string) $dsn->getHost());
+            $host = strtolower((string) $dsn->getHost());
 
             if (in_array($scheme, ['smtp', 'smtps'], true)
                 && in_array($host, MailganerCallbackBundle::SUPPORTED_MAILER_HOSTS, true)) {
@@ -204,14 +220,17 @@ class CallbackSubscriber implements EventSubscriberInterface
         try {
             $address = Address::create($email)->getAddress();
             $emailId = $this->getEmailId($payload);
-            $reason  = $this->buildReason($payload, $status);
+            if (null === $emailId) {
+                $this->logger->warning('Provider feedback lacks a valid Mautic email ID; applying contact-level DNC only.');
+            }
+            $reason = $this->buildReason($payload, $status);
             $dncType = $this->resolveStatusType($status);
 
             if (null === $dncType) {
                 return 0;
             }
 
-            $this->transportCallback->addFailureByAddress(
+            ($this->feedback ?? $this->transportCallback)->addFailureByAddress(
                 $address,
                 $reason,
                 $dncType,
@@ -221,7 +240,7 @@ class CallbackSubscriber implements EventSubscriberInterface
             $this->logger->info(sprintf('Processed Mailganer %s for %s', $status, $address));
 
             return 1;
-        } catch (\Throwable $exception) {
+        } catch (\Symfony\Component\Mime\Exception\RfcComplianceException $exception) {
             $this->logger->warning('Skipping invalid Mailganer event: '.$exception->getMessage());
         }
 
@@ -261,8 +280,8 @@ class CallbackSubscriber implements EventSubscriberInterface
     private function isStatusEnabled(string $status): bool
     {
         $parameterMap = [
-            'failed'      => 'mailganer_callback_handle_failed',
-            'fbl'         => 'mailganer_callback_handle_fbl',
+            'failed' => 'mailganer_callback_handle_failed',
+            'fbl' => 'mailganer_callback_handle_fbl',
             'unsubscribe' => 'mailganer_callback_handle_unsubscribe',
         ];
 
@@ -335,22 +354,38 @@ class CallbackSubscriber implements EventSubscriberInterface
      */
     private function getEmailId(array $payload): ?int
     {
-        foreach (['x_track_id', 'message_id'] as $field) {
-            if (!isset($payload[$field]) || !is_scalar($payload[$field])) {
+        foreach ([$payload, $payload['headers'] ?? []] as $args) {
+            if (!is_array($args)) {
                 continue;
             }
-
-            $value = (string) $payload[$field];
-            if (ctype_digit($value)) {
-                return (int) $value;
+            foreach ($args as $key => $value) {
+                if (0 === strcasecmp((string) $key, 'X-EMAIL-ID') && null !== ($id = $this->positiveId($value))) {
+                    return $id;
+                }
             }
-
-            if (preg_match('/X-EMAIL-ID[:=]([0-9]+)/i', $value, $matches)) {
-                return (int) $matches[1];
+        }
+        foreach (['x_track_id', 'external_id'] as $field) {
+            $value = $payload[$field] ?? null;
+            if (!is_string($value)) {
+                continue;
+            }
+            if (preg_match('/^mtc-e([1-9][0-9]*)-[hp]/', $value, $m)
+                || preg_match('/(?:^|[^A-Za-z0-9])X-EMAIL-ID[:=]([1-9][0-9]*)(?![0-9])/i', $value, $m)) {
+                return $this->positiveId($m[1]);
             }
         }
 
         return null;
+    }
+
+    private function positiveId(mixed $value): ?int
+    {
+        if ((!is_string($value) && !is_int($value)) || !preg_match('/^[1-9][0-9]*$/D', (string) $value)) {
+            return null;
+        }
+        $id = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        return false === $id ? null : $id;
     }
 
     /**

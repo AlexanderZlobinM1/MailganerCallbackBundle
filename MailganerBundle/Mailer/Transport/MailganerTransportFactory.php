@@ -23,6 +23,7 @@ final class MailganerTransportFactory extends AbstractTransportFactory
         ?EventDispatcherInterface $dispatcher = null,
         ?HttpClientInterface $client = null,
         ?LoggerInterface $logger = null,
+        private string $journalDirectory = '',
     ) {
         parent::__construct($dispatcher, $client, $logger);
     }
@@ -53,7 +54,10 @@ final class MailganerTransportFactory extends AbstractTransportFactory
             $this->toNullableString($dsn->getOption('x_track_prefix')),
             $this->client,
             $this->dispatcher,
-            $this->logger
+            $this->logger,
+            (int) $dsn->getOption('batch_size', 100),
+            '' !== $this->journalDirectory ? $this->journalDirectory : null,
+            $this->toBoolean($dsn->getOption('force_package'), false)
         ))
             ->setHost($host)
             ->setPort($dsn->getPort());
@@ -79,8 +83,8 @@ final class MailganerTransportFactory extends AbstractTransportFactory
     private function resolveApiKey(Dsn $dsn): string
     {
         $apiKey = $dsn->getOption('key')
-            ?? $dsn->getUser()
-            ?? $dsn->getPassword();
+            ?? $dsn->getPassword()
+            ?? $dsn->getUser();
 
         if (!is_string($apiKey) || '' === trim($apiKey)) {
             throw new IncompleteDsnException('Mailganer API key is missing. Use DSN user or ?key=... option.');

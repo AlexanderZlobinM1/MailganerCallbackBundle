@@ -108,6 +108,15 @@ try {
         $container->get('form.registry')->getType($formType);
         echo 'FORM '.$formType.PHP_EOL;
     }
+    $command = $container->get(MauticPlugin\MailganerBundle\Command\ApiCommand::class);
+    $translator = $container->get('translator');
+    foreach (['en_US', 'ru', 'sr_RS'] as $locale) {
+        $translated = $translator->trans('description', [], 'mailganer_api', $locale);
+        if ('description' === $translated || '' === $translated) {
+            throw new RuntimeException('Missing command translation: '.$locale);
+        }
+        echo 'COMMAND '.$locale.' '.$translated.PHP_EOL;
+    }
     echo 'PASS '.$bundle.' Mautic '.$kernel->getVersion().' PHP '.PHP_VERSION.PHP_EOL;
 } catch (Throwable $exception) {
     fwrite(STDERR, get_class($exception).': '.$exception->getMessage().PHP_EOL);

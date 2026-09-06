@@ -54,17 +54,17 @@ switch (true) {
 }
 
 return [
-    'name'        => 'Mailganer',
+    'name' => 'Mailganer',
     'description' => 'Mailganer (Samotpravil) API transport and callback processing for Mautic. Company: Sales Snap. Author: Alexander Zlobin. Copyright (c) Sales Snap.',
-    'author'      => 'Alexander Zlobin',
-    'version'     => '1.2.1',
-    'services'    => [
+    'author' => 'Alexander Zlobin',
+    'version' => '1.3.0',
+    'services' => [
         'integrations' => [
             'mautic.integration.mailganer' => [
-                'class'     => MailganerIntegration::class,
+                'class' => MailganerIntegration::class,
                 'arguments' => $defaultIntegrationArguments,
             ],
         ],
     ],
-    'parameters'  => [],
+    'parameters' => [],
 ];

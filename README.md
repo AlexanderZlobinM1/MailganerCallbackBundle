@@ -62,7 +62,7 @@ You can also enable incoming webhook logging (`Log incoming webhook payload`) fo
 
 - Plugin accepts both webhook payload formats: `messages` (single sends) and `xml_messages` (batch sends).
 - Email is extracted from `email`, `recipient`, `to`, or `address` field.
-- Optional message email ID is extracted from numeric `x_track_id` or `message_id` when possible.
+- Email attribution uses explicit `X-EMAIL-ID` metadata or a structured tracking marker; provider message IDs are not Mautic email IDs.
 - When webhook logging is enabled, inspect Mautic logs (`var/logs/mautic_prod.php` or environment-specific log file) for records:
   - `Mailganer callback received`
   - `Mailganer callback processed summary`
@@ -82,3 +82,9 @@ Shared callback files are synchronized from lite to full via:
 ```
 
 CI workflow checks that sync is not missed (`.github/workflows/sync-callback.yml`).
+
+## Release 1.1.3 attribution
+
+Outgoing Mautic emails carry an explicit email ID and structured tracking marker. Callback attribution accepts those markers; arbitrary numeric `message_id` / `x_track_id` values are not Mautic IDs. Database failures return HTTP 503. See `LINEAGE_AUDIT.md` for the SES/SendGrid/Mailganer audit.
+
+For API delivery and packages, install the separate **MailganerBundle** release asset and follow [its README](MailganerBundle/README.md). Disable this Callback integration when switching to the full integration.

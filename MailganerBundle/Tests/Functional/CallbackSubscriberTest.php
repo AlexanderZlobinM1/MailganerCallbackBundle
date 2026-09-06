@@ -38,10 +38,10 @@ class CallbackSubscriberTest extends TestCase
         $eventPayload = [
             'xml_messages' => [
                 [
-                    'status'     => 'failed',
-                    'email'      => 'john.doe@example.com',
-                    'reason'     => 'mailbox not found',
-                    'x_track_id' => '42',
+                    'status' => 'failed',
+                    'email' => 'john.doe@example.com',
+                    'reason' => 'mailbox not found',
+                    'x_track_id' => 'mtc-e42-h0123456789abcdef',
                 ],
             ],
         ];
@@ -68,7 +68,7 @@ class CallbackSubscriberTest extends TestCase
             'messages' => [
                 [
                     'status' => 'fbl',
-                    'email'  => 'john.doe@example.com',
+                    'email' => 'john.doe@example.com',
                 ],
             ],
         ];
@@ -89,7 +89,7 @@ class CallbackSubscriberTest extends TestCase
             'xml_messages' => [
                 [
                     'status' => 'delivered',
-                    'email'  => 'john.doe@example.com',
+                    'email' => 'john.doe@example.com',
                 ],
             ],
         ];
@@ -112,7 +112,7 @@ class CallbackSubscriberTest extends TestCase
             'xml_messages' => [
                 [
                     'status' => 'failed',
-                    'email'  => 'john.doe@example.com',
+                    'email' => 'john.doe@example.com',
                     'reason' => 'mailbox not found',
                 ],
             ],
@@ -130,14 +130,14 @@ class CallbackSubscriberTest extends TestCase
 
         $subscriber = $this->createSubscriber($transportCallback, [
             '__published' => false,
-            'mailer_dsn'  => 'smtp://api.samotpravil.ru:1126',
+            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
         ]);
 
         $request = Request::create('/mailer/callback', 'POST', [], [], [], [], json_encode([
             'messages' => [
                 [
                     'status' => 'failed',
-                    'email'  => 'john.doe@example.com',
+                    'email' => 'john.doe@example.com',
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
@@ -172,16 +172,16 @@ class CallbackSubscriberTest extends TestCase
         $logger->expects(self::never())->method('warning');
 
         $subscriber = $this->createSubscriber($transportCallback, [
-            'mailer_dsn'                    => 'smtp://api.samotpravil.ru:1126',
+            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
             'mailganer_log_payload' => true,
         ], $logger);
 
         $request = Request::create('/mailer/callback', 'POST', [], [], [], [], json_encode([
             'xml_messages' => [[
-                'status'     => 'failed',
-                'email'      => 'john.doe@example.com',
-                'reason'     => 'mailbox not found',
-                'x_track_id' => '42',
+                'status' => 'failed',
+                'email' => 'john.doe@example.com',
+                'reason' => 'mailbox not found',
+                'x_track_id' => 'mtc-e42-h0123456789abcdef',
             ]],
         ], JSON_THROW_ON_ERROR));
 
@@ -210,7 +210,7 @@ class CallbackSubscriberTest extends TestCase
             ->with('Mailganer callback invalid JSON', self::callback(static fn (array $context): bool => isset($context['json_error'])));
 
         $subscriber = $this->createSubscriber($this->createMock(TransportCallback::class), [
-            'mailer_dsn'                    => 'smtp://api.samotpravil.ru:1126',
+            'mailer_dsn' => 'smtp://api.samotpravil.ru:1126',
             'mailganer_log_payload' => true,
         ], $logger);
 
@@ -220,6 +220,39 @@ class CallbackSubscriberTest extends TestCase
         $subscriber->processCallbackRequest($event);
 
         self::assertSame(Response::HTTP_BAD_REQUEST, $event->getResponse()?->getStatusCode());
+    }
+
+    public function testDatabaseFailurePropagatesInsteadOfAcknowledgingLostEvent(): void
+    {
+        $callback = $this->createMock(TransportCallback::class);
+        $callback->method('addFailureByAddress')->willThrowException(new \RuntimeException('database unavailable'));
+        $subscriber = $this->createSubscriber($callback);
+        $this->expectException(\RuntimeException::class);
+        $this->invokeProcessPayload($subscriber, [['status' => 'failed', 'email' => 'a@example.com']]);
+    }
+
+    public function testProviderIdsAreNeverMauticEmailIds(): void
+    {
+        $callback = $this->createMock(TransportCallback::class);
+        $callback->expects(self::once())->method('addFailureByAddress')->with('a@example.com', self::anything(), DoNotContact::BOUNCED, null);
+        $subscriber = $this->createSubscriber($callback);
+        $this->invokeProcessPayload($subscriber, [['status' => 'failed', 'email' => 'a@example.com'] + ['message_id' => '42', 'x_track_id' => '42', 'smtp-id' => '42']]);
+    }
+
+    public function testValidTopLevelEmailIdOverridesMalformedNestedValue(): void
+    {
+        $callback = $this->createMock(TransportCallback::class);
+        $callback->expects(self::once())->method('addFailureByAddress')->with('a@example.com', self::anything(), DoNotContact::BOUNCED, 42);
+        $subscriber = $this->createSubscriber($callback);
+        $this->invokeProcessPayload($subscriber, [['status' => 'failed', 'email' => 'a@example.com'] + ['X-EMAIL-ID' => '42', 'custom_args' => ['X-EMAIL-ID' => '0']]]);
+    }
+
+    public function testOverflowEmailIdCannotBeAttributed(): void
+    {
+        $callback = $this->createMock(TransportCallback::class);
+        $callback->expects(self::once())->method('addFailureByAddress')->with('a@example.com', self::anything(), DoNotContact::BOUNCED, null);
+        $subscriber = $this->createSubscriber($callback);
+        $this->invokeProcessPayload($subscriber, [['status' => 'failed', 'email' => 'a@example.com'] + ['X-EMAIL-ID' => '99999999999999999999999']]);
     }
 
     /**
@@ -269,5 +302,4 @@ class CallbackSubscriberTest extends TestCase
 
         return $result;
     }
-
 }

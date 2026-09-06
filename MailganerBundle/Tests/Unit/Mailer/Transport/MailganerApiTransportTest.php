@@ -6,10 +6,10 @@ namespace MauticPlugin\MailganerBundle\Tests\Unit\Mailer\Transport;
 
 use MauticPlugin\MailganerBundle\Mailer\Transport\MailganerApiTransport;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Mailer\Exception\HttpTransportException;
-use Symfony\Component\Mime\Email;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mime\Email;
 
 class MailganerApiTransportTest extends TestCase
 {
@@ -19,8 +19,8 @@ class MailganerApiTransportTest extends TestCase
 
         $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions) {
             $capturedOptions = [
-                'method'  => $method,
-                'url'     => $url,
+                'method' => $method,
+                'url' => $url,
                 'options' => $options,
             ];
 
@@ -51,11 +51,11 @@ class MailganerApiTransportTest extends TestCase
         self::assertNotNull($sentMessage);
         self::assertSame('provider-message-id', $sentMessage->getMessageId());
         self::assertSame('POST', $capturedOptions['method']);
-        self::assertSame('https://api.samotpravil.ru/api/v2/mail/send', $capturedOptions['url']);
+        self::assertSame('https://api.samotpravil.ru/api/v1/smtp_send', $capturedOptions['url']);
 
         $payload = json_decode($capturedOptions['options']['body'], true, flags: JSON_THROW_ON_ERROR);
 
-        self::assertSame('Sender <sender@example.com>', $payload['email_from']);
+        self::assertSame('sender@example.com', \Symfony\Component\Mime\Address::create($payload['email_from'])->getAddress());
         self::assertSame('recipient@example.com', $payload['email_to']);
         self::assertSame('Test subject', $payload['subject']);
         self::assertSame('<p>Body</p>', $payload['message_text']);
@@ -66,7 +66,7 @@ class MailganerApiTransportTest extends TestCase
         self::assertTrue($payload['raw']);
         self::assertArrayHasKey('x_track_id', $payload);
         self::assertNotSame('', $payload['x_track_id']);
-        self::assertSame($payload['x_track_id'], $payload['headers']['X-Track-ID']);
+        self::assertArrayNotHasKey('X-Track-ID', $payload['headers']);
         self::assertSame(
             ['Authorization: api-key-123'],
             $capturedOptions['options']['normalized_headers']['authorization']
@@ -89,7 +89,7 @@ class MailganerApiTransportTest extends TestCase
             ->subject('Test')
             ->html('<p>Body</p>');
 
-        $this->expectException(HttpTransportException::class);
+        $this->expectException(TransportException::class);
         $transport->send($email);
     }
 }

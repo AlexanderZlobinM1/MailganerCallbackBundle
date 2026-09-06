@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3] - 2026-09-06
+
+- Serialize callback DNC updates per contact, ignore repeated feedback and preserve unsubscribe state and original email attribution.
+
+- Preserve SMTP callback attribution, stop interpreting provider IDs as Mautic IDs, and return retryable errors for failed database writes. Exclude the full bundle from lite service discovery.
+- Audit and regression coverage against managed SES 1.0.38.x; see `LINEAGE_AUDIT.md`.
+
 ## 1.1.2 — 2026-09-06
 
 - Support Mautic 7.2 while retaining the declared older Mautic versions.

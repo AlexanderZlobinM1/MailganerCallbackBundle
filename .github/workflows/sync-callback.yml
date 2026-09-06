@@ -19,6 +19,7 @@ jobs:
         run: |
           git diff --exit-code -- \
             MailganerBundle/EventSubscriber/CallbackSubscriber.php \
+            MailganerBundle/Model/DncFeedback.php \
             MailganerBundle/Tests/Functional/CallbackSubscriberTest.php \
             MailganerBundle/Integration/MailganerIntegration.php \
             MailganerBundle/Translations/en_US/messages.ini \

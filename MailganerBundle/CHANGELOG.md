@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0] - 2026-09-06
+
+- Serialize callback DNC updates per contact, ignore repeated feedback and preserve unsubscribe state and original email attribution.
+
+- Add current single-send API, native Mautic token batches using JSON packages, persistent submission receipts and provider management/diagnostic commands. Preserve raw content, ordinary attachments, Reply-To and per-recipient attribution; surface unsupported MIME and API/storage failures.
+- Audit and regression coverage against managed SES 1.0.38.x; see `LINEAGE_AUDIT.md`.
+
 ## 1.2.1 — 2026-09-06
 
 - Support Mautic 7.2 while retaining the declared older Mautic versions.
